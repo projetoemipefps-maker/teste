@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: #3B1F0E;
+  color: #3B1F0E;
+  font-family: Nunito, system-ui, sans-serif;
+  font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  overscroll-behavior: none;
+}
+button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
