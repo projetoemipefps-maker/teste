@@ -1,4 +1,5 @@
-import { FRYER } from '../config'
+import { FRIES_STOCK_UNITS, FRYER } from '../config'
+import { hasStock, useStock } from './stock'
 import type { ActionResult, FriesQuality, FriesStage, SessionState, TrayItem } from './types'
 
 export function friesStage(cook: number): FriesStage {
@@ -11,13 +12,23 @@ export function friesQuality(age: number): FriesQuality {
   return age >= FRYER.staleSeconds ? 'stale' : 'fresh'
 }
 
+/** Põe uma porção no cesto (gasta batata do estoque). */
 export function placeFries(session: SessionState, basket: number): ActionResult {
-  if (session.ended || basket < 0 || basket >= session.fryer.length || session.fryer[basket]) {
+  if (
+    session.ended ||
+    basket < 0 ||
+    basket >= session.fryer.length ||
+    session.fryer[basket] ||
+    !hasStock(session.stock, 'potato', FRIES_STOCK_UNITS)
+  ) {
     return { session, events: [] }
   }
   const fryer = [...session.fryer]
   fryer[basket] = { cook: 0 }
-  return { session: { ...session, fryer }, events: [{ type: 'friesPlaced', basket }] }
+  return {
+    session: { ...session, fryer, stock: useStock(session.stock, 'potato', FRIES_STOCK_UNITS) },
+    events: [{ type: 'friesPlaced', basket }],
+  }
 }
 
 /** Pronta vai para a estufa (se houver espaço); queimada vai para o lixo; ainda fritando não sai. */

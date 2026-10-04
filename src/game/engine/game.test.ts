@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CUSTOMERS, DRINKS, FRYER, GRILL, PROGRESSION, RECIPES, SHIFT } from '../config'
+import { CUSTOMERS, DEMAND, DRINKS, FRYER, GRILL, PROGRESSION, RECIPES, SHIFT } from '../config'
 import {
   addPattyToBurger,
   addToBurger,
@@ -15,16 +15,15 @@ import { canServe, serveOrder } from './serve'
 import { step } from './tick'
 import { getRecipe, patienceFor, patienceRatio } from './customers'
 import { nextRandom, randomInt } from './rng'
+import { rollCustomer } from './customers'
+import { defaultPrices, recipeKey } from './pricing'
+import { isClosing } from './clock'
 import { grillAlert, fryerAlert } from './alerts'
-import type { Customer, OrderItems, PattyQuality, PlayerState, SessionState } from './types'
+import { testCustomer, testPlayer } from './testing'
+import { filledStock } from './stock'
+import type { OrderItems, PattyQuality, PlayerState, SessionState } from './types'
 
-const player = (): PlayerState => ({
-  money: 0,
-  xp: 0,
-  level: PROGRESSION.startingLevel,
-  day: 1,
-  reputation: PROGRESSION.startingReputation,
-})
+const player = (): PlayerState => testPlayer()
 
 /** Roda o motor por `seconds` em passos pequenos. */
 function run(session: SessionState, p: PlayerState, seconds: number) {
@@ -42,13 +41,8 @@ function run(session: SessionState, p: PlayerState, seconds: number) {
 }
 
 function withCustomer(order: OrderItems, patienceRatioValue = 1): SessionState {
-  const max = patienceFor(order)
-  const c: Customer = {
-    id: 1, slot: 0, order, variant: 0, patienceMax: max, patience: max * patienceRatioValue,
-    status: 'waiting', mood: 'neutral', leaveTimer: 0,
-  }
-  const s = createSession(1)
-  return { ...s, slots: [c, null, null], selectedSlot: 0, nextCustomerId: 2, spawnTimer: 999 }
+  const s = createSession(1, { stock: filledStock(99) })
+  return { ...s, slots: [testCustomer(order, patienceRatioValue), null, null], selectedSlot: 0, nextCustomerId: 2, spawnTimer: 999 }
 }
 
 /** Monta o lanche da receita com carnes `quality` e já o coloca na bandeja. */
@@ -210,6 +204,107 @@ describe('entrega', () => {
   })
 })
 
+describe('fechamento e chegadas', () => {
+  it('depois do horário de fechar não chegam mais clientes e o dia acaba quando o balcão esvazia', () => {
+    let s = createSession(21, { stock: filledStock(99) })
+    let p = player()
+    let arrivalsAfterClose = 0
+    let ended = false
+    for (let t = 0; t < SHIFT.durationSeconds + DEMAND.closingGraceSeconds + 5 && !ended; t += 0.1) {
+      const r = step(s, p, 0.1)
+      if (isClosing(r.session.elapsed)) arrivalsAfterClose += r.events.filter((e) => e.type === 'customerArrived').length
+      s = r.session
+      p = r.player
+      ended = s.ended
+    }
+    expect(arrivalsAfterClose).toBe(0)
+    expect(ended).toBe(true)
+    // o dia nunca passa da tolerância depois do fechamento
+    expect(s.elapsed).toBeLessThanOrEqual(SHIFT.durationSeconds + DEMAND.closingGraceSeconds + 0.2)
+  })
+
+  it('o dia acaba ao fim da tolerância mesmo com clientes esperando', () => {
+    const base = withCustomer(solo(), 1)
+    const waiting = { ...base, elapsed: SHIFT.durationSeconds + DEMAND.closingGraceSeconds - 0.05, spawnTimer: 999 }
+    const long = { ...waiting, slots: [{ ...waiting.slots[0]!, patience: 999, patienceMax: 999 }, null, null] }
+    expect(step(long, player(), 0.1).session.ended).toBe(true)
+  })
+
+  it('num dia inteiro sem atender, chega uma quantidade razoável de clientes', () => {
+    const r = run(createSession(33, { stock: filledStock(99) }), player(), SHIFT.durationSeconds)
+    const arrivals = r.events.filter((e) => e.type === 'customerArrived').length
+    expect(arrivals).toBeGreaterThanOrEqual(15)
+    expect(arrivals).toBeLessThanOrEqual(70)
+  })
+
+  it('no almoço e no jantar chegam mais clientes que no fim de tarde', () => {
+    const count = (fromHour: number, toHour: number) => {
+      const per = SHIFT.durationSeconds / (SHIFT.closeHour - SHIFT.openHour)
+      let total = 0
+      for (let seed = 1; seed <= 12; seed++) {
+        let s = { ...createSession(seed, { stock: filledStock(99) }), spawnTimer: 0 }
+        s = { ...s, elapsed: (fromHour - SHIFT.openHour) * per }
+        let p = player()
+        const end = (toHour - SHIFT.openHour) * per
+        while (s.elapsed < end) {
+          const r = step({ ...s, slots: [null, null, null] }, p, 0.1) // balcão sempre livre: mede só a taxa
+          total += r.events.filter((e) => e.type === 'customerArrived').length
+          s = r.session
+          p = r.player
+        }
+      }
+      return total
+    }
+    const lunch = count(12, 14)
+    const dinner = count(19, 21)
+    const afternoon = count(15, 17)
+    expect(lunch).toBeGreaterThan(afternoon * 1.8)
+    expect(dinner).toBeGreaterThan(afternoon * 1.8)
+  })
+
+  it('reputação alta e preço baixo deixam o cliente mais paciente; preço alto, menos', () => {
+    const prices = defaultPrices()
+    const dear = { ...prices, [recipeKey('simples')]: 30 }
+    const patienceOf = (rep: number, p: typeof prices) => {
+      // força a receita 'simples' procurando um cliente com esse pedido sem combo
+      for (let seed = 1; seed < 400; seed++) {
+        const [c] = rollCustomer(seed, 1, 1, 0, [], { prices: p, reputation: rep })
+        if (c.order.recipeId === 'simples' && !c.order.fries && !c.order.drink) return c.patienceMax
+      }
+      throw new Error('sem pedido simples')
+    }
+    expect(patienceOf(5, prices)).toBeGreaterThan(patienceOf(3, prices))
+    expect(patienceOf(1, prices)).toBeLessThan(patienceOf(3, prices))
+    expect(patienceOf(3, dear)).toBeLessThan(patienceOf(3, prices))
+  })
+
+  it('cada entrega vira uma avaliação e mexe na reputação', () => {
+    const s = withBurgerOnTray(withCustomer(solo('classico')), 'classico')
+    const r = serveOrder(s, player())
+    expect(r.player.reviews).toHaveLength(1)
+    expect(r.player.reviews[0]!.stars).toBe(5)
+    expect(r.player.reputation).toBeGreaterThan(3)
+    expect(r.events[0]).toMatchObject({ review: { stars: 5 } })
+    expect(r.session.stats).toMatchObject({ served: 1, soldByRecipe: { classico: 1 } })
+    expect(r.session.stats.revenue).toBeGreaterThan(0)
+    expect(r.session.stats.tips).toBeGreaterThan(0)
+  })
+
+  it('preço mais alto rende mais por pedido, mas menos gorjeta', () => {
+    const baseTray = withBurgerOnTray(withCustomer(solo('simples')), 'simples')
+    const dearPrices = { ...defaultPrices(), [recipeKey('simples')]: 22 }
+    const dearCustomer = testCustomer(solo('simples'), 1)
+    const dearSession = {
+      ...baseTray,
+      slots: [{ ...dearCustomer, priceRatio: 22 / 14 }, null, null] as typeof baseTray.slots,
+    }
+    const normal = serveOrder(baseTray, player())
+    const dear = serveOrder(dearSession, { ...player(), prices: dearPrices })
+    expect(dear.session.stats.revenue).toBeGreaterThan(normal.session.stats.revenue)
+    expect(dear.session.stats.tips).toBeLessThan(normal.session.stats.tips)
+  })
+})
+
 describe('balanceamento', () => {
   it('todo pedido dá tempo de ser feito dentro da paciência mínima', () => {
     // A carne leva os dois lados no ponto; batata e bebida cozinham/enchem em paralelo; sobra folga para os toques.
@@ -240,7 +335,8 @@ describe('passagem do tempo', () => {
   it('paciência zerada: cliente vai embora sem pagar e a reputação cai', () => {
     const r = run(withCustomer(solo(), 0.001), player(), 0.5)
     expect(r.events.some((e) => e.type === 'customerLost')).toBe(true)
-    expect(r.player.money).toBe(0)
+    expect(r.player.money).toBe(player().money)
+    expect(r.player.reviews[0]).toMatchObject({ stars: 1 })
     expect(r.player.reputation).toBeLessThan(PROGRESSION.startingReputation)
     expect(r.session.stats.lost).toBe(1)
   })
@@ -273,7 +369,7 @@ describe('passagem do tempo', () => {
   })
 
   it('o turno termina no tempo configurado e depois não avança mais', () => {
-    const r = run(createSession(9), player(), SHIFT.durationSeconds + 1)
+    const r = run(createSession(9), player(), SHIFT.durationSeconds + DEMAND.closingGraceSeconds + 1)
     expect(r.session.ended).toBe(true)
     expect(r.events.filter((e) => e.type === 'shiftEnded')).toHaveLength(1)
     expect(step(r.session, r.player, 1).session).toBe(r.session)

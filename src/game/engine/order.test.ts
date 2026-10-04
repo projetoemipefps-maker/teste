@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { COMBOS, CUP_SIZES, ECONOMY, RECIPES } from '../config'
 import { getRecipe, rollOrder } from './customers'
-import { drinkPrice, orderPrice, recipePrice } from './payment'
+import { FRIES_KEY, defaultPrices, drinkKey, itemPrice, orderPrice, recipeKey } from './pricing'
+import { testCustomer } from './testing'
 import { rateOrder, waitPenalty } from './rating'
 import { evaluateService } from './serve'
 import type { Customer, OrderItems, Tray } from './types'
@@ -11,9 +12,8 @@ const burgerFor = (recipeId: string, patties: ('raw' | 'perfect' | 'overdone')[]
   patties,
 })
 const noTray = (): Tray => ({ burger: null, fries: null, drink: null })
-const customer = (order: OrderItems, ratio = 1): Customer => ({
-  id: 1, slot: 0, order, variant: 0, patienceMax: 40, patience: 40 * ratio, status: 'waiting', mood: 'neutral', leaveTimer: 0,
-})
+const prices = defaultPrices()
+const customer = (order: OrderItems, ratio = 1): Customer => testCustomer(order, ratio)
 const solo: OrderItems = { recipeId: 'simples', fries: false, drink: null }
 const combo: OrderItems = { recipeId: 'simples', fries: true, drink: 'medium' }
 const perfectCombo = (): Tray => ({
@@ -104,8 +104,8 @@ describe('nota do pedido', () => {
 
 describe('pagamento do pedido', () => {
   it('perfeito: preço dos itens + gorjeta + bônus da carne', () => {
-    const r = evaluateService(customer(combo), perfectCombo())
-    expect(r.itemsPaid).toBe(orderPrice(combo))
+    const r = evaluateService(customer(combo), perfectCombo(), prices)
+    expect(r.itemsPaid).toBe(orderPrice(combo, prices))
     expect(r.tip).toBeGreaterThan(0)
     expect(r.bonus).toBeGreaterThan(0)
     expect(r.total).toBe(r.itemsPaid + r.tip + r.bonus)
@@ -114,33 +114,33 @@ describe('pagamento do pedido', () => {
   })
 
   it('o bônus só vem com carne no ponto e lanche certo', () => {
-    const overdone = evaluateService(customer(solo), { ...noTray(), burger: burgerFor('simples', ['overdone']) })
+    const overdone = evaluateService(customer(solo), { ...noTray(), burger: burgerFor('simples', ['overdone']) }, prices)
     expect(overdone.bonus).toBe(0)
-    const wrong = evaluateService(customer(solo), { ...noTray(), burger: burgerFor('classico', ['perfect']) })
+    const wrong = evaluateService(customer(solo), { ...noTray(), burger: burgerFor('classico', ['perfect']) }, prices)
     expect(wrong.bonus).toBe(0)
   })
 
   it('item errado paga fração; item faltando não paga', () => {
-    const price = recipePrice(getRecipe('simples'))
-    const wrong = evaluateService(customer(solo), { ...noTray(), burger: burgerFor('classico', ['perfect']) })
+    const price = itemPrice(prices, recipeKey('simples'))
+    const wrong = evaluateService(customer(solo), { ...noTray(), burger: burgerFor('classico', ['perfect']) }, prices)
     expect(wrong.itemsPaid).toBe(Math.round(price * ECONOMY.wrongPayFraction))
-    const missing = evaluateService(customer(combo), { ...perfectCombo(), fries: null, drink: null })
+    const missing = evaluateService(customer(combo), { ...perfectCombo(), fries: null, drink: null }, prices)
     expect(missing.itemsPaid).toBe(price)
     expect(missing.extrasDelivered).toBe(0)
-    const wrongCup = evaluateService(customer(combo), { ...perfectCombo(), drink: { size: 'small', quality: 'good' } })
-    expect(wrongCup.itemsPaid).toBe(price + ECONOMY.friesPrice + Math.round(drinkPrice('medium') * ECONOMY.wrongPayFraction))
+    const wrongCup = evaluateService(customer(combo), { ...perfectCombo(), drink: { size: 'small', quality: 'good' } }, prices)
+    expect(wrongCup.itemsPaid).toBe(price + itemPrice(prices, FRIES_KEY) + Math.round(itemPrice(prices, drinkKey('medium')) * ECONOMY.wrongPayFraction))
   })
 
   it('a gorjeta depende da nota e da rapidez', () => {
-    const good = evaluateService(customer(solo, 1), { ...noTray(), burger: burgerFor('simples', ['perfect']) })
-    const slow = evaluateService(customer(solo, 0.05), { ...noTray(), burger: burgerFor('simples', ['perfect']) })
-    const bad = evaluateService(customer(solo, 1), { ...noTray(), burger: burgerFor('simples', ['raw']) })
+    const good = evaluateService(customer(solo, 1), { ...noTray(), burger: burgerFor('simples', ['perfect']) }, prices)
+    const slow = evaluateService(customer(solo, 0.05), { ...noTray(), burger: burgerFor('simples', ['perfect']) }, prices)
+    const bad = evaluateService(customer(solo, 1), { ...noTray(), burger: burgerFor('simples', ['raw']) }, prices)
     expect(good.tip).toBeGreaterThan(slow.tip)
     expect(good.tip).toBeGreaterThan(bad.tip)
   })
 
   it('pagar nunca dá valor negativo, mesmo sem nada na bandeja', () => {
-    const r = evaluateService(customer(combo), noTray())
+    const r = evaluateService(customer(combo), noTray(), prices)
     expect(r.total).toBe(0)
     expect(r.stars).toBe(1)
   })

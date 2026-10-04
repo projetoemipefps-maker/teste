@@ -2,7 +2,7 @@ import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
 import { useEffect, useRef } from 'react'
 import { Coin, ClockIcon, PauseIcon, Star, SunIcon } from '@/art'
 import { PROGRESSION } from '@/game/config'
-import { formatClock, starFill, xpProgress, xpToNext } from '@/game/engine'
+import { formatClock, isClosing, isPeak, starFill, xpProgress, xpToNext } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 
 function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -36,8 +36,8 @@ function Money() {
     <motion.div style={{ scale: bump }} data-money>
       <Chip>
         <Coin className="h-6 w-6" />
-        <span className="text-ink">R$</span>
-        <motion.span className="min-w-[1.5ch] tabular-nums">{text}</motion.span>
+        <span className={money < 0 ? 'text-tomato-dark' : 'text-ink'}>R$</span>
+        <motion.span className={`min-w-[1.5ch] tabular-nums ${money < 0 ? 'text-tomato-dark' : ''}`}>{text}</motion.span>
       </Chip>
     </motion.div>
   )
@@ -77,22 +77,47 @@ function Level() {
 
 function Stars() {
   const rep = useGameStore((s) => s.player.reputation)
+  const setPaused = useGameStore((s) => s.setPaused)
+  const setReviewsOpen = useGameStore((s) => s.setReviewsOpen)
   return (
-    <div className="flex" role="img" aria-label={`Reputação ${rep.toFixed(1)} de 5 estrelas`}>
+    <motion.button
+      type="button"
+      aria-label={`Reputação ${rep.toFixed(1)} de 5 estrelas. Ver avaliações`}
+      onClick={() => {
+        setPaused(true)
+        setReviewsOpen(true)
+      }}
+      whileTap={{ scale: 0.92 }}
+      className="flex"
+    >
       {Array.from({ length: PROGRESSION.maxReputation }, (_, i) => (
         <Star key={i} id={`hud-star-${i}`} amount={starFill(rep, i)} className="-mx-px h-6 w-6" />
       ))}
-    </div>
+    </motion.button>
   )
 }
 
 function Clock() {
   const text = useGameStore((s) => formatClock(s.session.elapsed))
+  const peak = useGameStore((s) => isPeak(s.session.elapsed) && !isClosing(s.session.elapsed))
+  const closing = useGameStore((s) => isClosing(s.session.elapsed))
   return (
-    <Chip>
-      <ClockIcon className="h-6 w-6" />
-      <span className="tabular-nums">{text}</span>
-    </Chip>
+    <div className="relative">
+      <Chip>
+        <ClockIcon className="h-6 w-6" />
+        <span className="tabular-nums">{text}</span>
+      </Chip>
+      {(peak || closing) && (
+        <motion.span
+          key={closing ? 'closing' : 'peak'}
+          className={`absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-ink px-2 py-px font-display text-[10px] leading-tight ${closing ? 'bg-cream text-ink' : 'fx-pulse bg-mustard text-ink'}`}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+        >
+          {closing ? 'Fechando!' : 'Hora do pico!'}
+        </motion.span>
+      )}
+    </div>
   )
 }
 

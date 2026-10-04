@@ -1,9 +1,9 @@
 export const SHIFT = {
-  /** Duração do turno em segundos reais. */
-  durationSeconds: 180,
-  /** Horário do relógio do jogo (horas) no início e no fim do turno. */
-  openHour: 10,
-  closeHour: 22,
+  /** Duração do turno em segundos reais (o dia do jogo vai de `openHour` a `closeHour`). */
+  durationSeconds: 300,
+  /** Horário do relógio do jogo (horas) na abertura e no fechamento. */
+  openHour: 11,
+  closeHour: 23,
   /** Maior delta time aceito por quadro (segundos), evita saltos ao voltar de outra aba. */
   maxDeltaSeconds: 0.1,
 } as const

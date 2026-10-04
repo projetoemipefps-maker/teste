@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PROGRESSION, SHIFT } from '../config'
 import { addXp, xpForServe, xpProgress, xpToNext } from './xp'
-import { applyReputation, clampReputation, reputationForStars, reputationLost, starFill } from './rating'
+import { starFill } from './rating'
 import { formatClock, shiftProgress } from './clock'
 
 describe('XP e nível', () => {
@@ -43,20 +43,7 @@ describe('XP e nível', () => {
   })
 })
 
-describe('reputação', () => {
-  it('nota alta sobe, nota baixa desce, abandono desce mais', () => {
-    expect(reputationForStars(5)).toBeGreaterThan(reputationForStars(4))
-    expect(reputationForStars(1)).toBeLessThan(0)
-    expect(reputationForStars(3)).toBe(0)
-    expect(reputationLost()).toBeLessThan(reputationForStars(1))
-  })
-
-  it('fica entre 0 e o máximo', () => {
-    expect(applyReputation(0.1, -5)).toBe(0)
-    expect(applyReputation(4.9, 5)).toBe(PROGRESSION.maxReputation)
-    expect(clampReputation(-1)).toBe(0)
-  })
-
+describe('estrelas do HUD', () => {
   it('preenchimento das estrelas', () => {
     expect(starFill(2.5, 0)).toBe(1)
     expect(starFill(2.5, 2)).toBeCloseTo(0.5)
@@ -66,9 +53,9 @@ describe('reputação', () => {
 
 describe('relógio do turno', () => {
   it('começa na abertura e termina no fechamento', () => {
-    expect(formatClock(0)).toBe('10:00')
-    expect(formatClock(SHIFT.durationSeconds)).toBe('22:00')
-    expect(formatClock(SHIFT.durationSeconds / 2)).toBe('16:00')
+    expect(formatClock(0)).toBe('11:00')
+    expect(formatClock(SHIFT.durationSeconds)).toBe('23:00')
+    expect(formatClock(SHIFT.durationSeconds / 2)).toBe('17:00')
   })
 
   it('o progresso é limitado a 0–1', () => {

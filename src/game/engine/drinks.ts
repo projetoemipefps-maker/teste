@@ -1,4 +1,5 @@
 import { DRINKS, type CupSize } from '../config'
+import { hasStock, refundStock, useStock } from './stock'
 import type { ActionResult, Cup, DrinkQuality, SessionState } from './types'
 
 export function cupCapacity(size: CupSize): number {
@@ -17,10 +18,31 @@ export function cupQuality(cup: Cup): DrinkQuality {
   return 'good'
 }
 
-/** Escolhe um copo vazio e o coloca sob a máquina (troca o copo atual, se houver). */
+export const sodaUnits = (size: CupSize): number => DRINKS.cups[size].sodaUnits
+
+/** Estoque depois de devolver o copo atual, se ainda estiver vazio (nada foi servido). */
+function stockAfterRefund(session: SessionState) {
+  const { cup } = session
+  return cup && cup.fill === 0 ? refundStock(session.stock, 'soda', sodaUnits(cup.size)) : session.stock
+}
+
+/** Dá para pôr um copo deste tamanho (há refrigerante, contando o que volta se o copo atual estiver vazio)? */
+export function canChooseCup(session: SessionState, size: CupSize): boolean {
+  return !session.ended && hasStock(stockAfterRefund(session), 'soda', sodaUnits(size))
+}
+
+/**
+ * Escolhe um copo vazio e o coloca sob a máquina, gastando refrigerante do estoque.
+ * Trocar um copo ainda vazio devolve o refrigerante dele; trocar um copo já servido desperdiça.
+ */
 export function chooseCup(session: SessionState, size: CupSize): ActionResult {
-  if (session.ended) return { session, events: [] }
-  return { session: { ...session, cup: { size, fill: 0 }, pouring: false }, events: [] }
+  if (session.ended || (session.cup?.size === size && session.cup.fill === 0)) return { session, events: [] }
+  const available = stockAfterRefund(session)
+  if (!hasStock(available, 'soda', sodaUnits(size))) return { session, events: [] }
+  return {
+    session: { ...session, cup: { size, fill: 0 }, pouring: false, stock: useStock(available, 'soda', sodaUnits(size)) },
+    events: [],
+  }
 }
 
 export function setPouring(session: SessionState, pouring: boolean): SessionState {
@@ -51,5 +73,5 @@ export function cupToTray(session: SessionState): ActionResult {
 
 export function discardCup(session: SessionState): ActionResult {
   if (!session.cup) return { session, events: [] }
-  return { session: { ...session, cup: null, pouring: false }, events: [] }
+  return { session: { ...session, cup: null, pouring: false, stock: stockAfterRefund(session) }, events: [] }
 }

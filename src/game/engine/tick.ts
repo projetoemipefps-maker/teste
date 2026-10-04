@@ -1,19 +1,25 @@
-import { CUSTOMERS, FRYER, SHIFT } from '../config'
+import { CUSTOMERS, DEMAND, FRYER, SHIFT } from '../config'
+import { isClosing } from './clock'
 import { firstFreeSlot, rollCustomer } from './customers'
+import { spawnInterval } from './demand'
 import { pourCup } from './drinks'
 import { cookPatty, pattyStage } from './grill'
-import { applyReputation, reputationLost } from './rating'
-import { randomRange } from './rng'
+import { addReview } from './reputation'
+import { makeLostReview } from './reviews'
+import { nextRandom } from './rng'
 import type { Customer, FriesPortion, FryBasket, GameEvent, GrillPatty, PlayerState, SessionState, StepResult } from './types'
 
 const burntBefore = (p: GrillPatty) => pattyStage(p) === 'burnt'
 
-/** Avança o turno `dt` segundos: cozimento, paciência, saída de clientes, chegadas e fim do turno. Função pura. */
+/**
+ * Avança o turno `dt` segundos: cozimento, paciência, saída de clientes, chegadas (conforme a hora, o dia,
+ * a reputação e os preços) e fechamento. Função pura.
+ */
 export function step(session: SessionState, player: PlayerState, dtRaw: number): StepResult {
   if (session.ended || dtRaw <= 0) return { session, player, events: [] }
   const dt = Math.min(dtRaw, SHIFT.maxDeltaSeconds)
   const events: GameEvent[] = []
-  let reputation = player.reputation
+  let nextPlayer = player
   let lost = session.stats.lost
   let { rngState, nextCustomerId, spawnTimer, selectedSlot } = session
 
@@ -25,9 +31,10 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
     }
     const patience = c.patience - dt
     if (patience > 0) return { ...c, patience }
-    reputation = applyReputation(reputation, reputationLost())
+    const review = makeLostReview(c.id, player.day)
+    nextPlayer = addReview(nextPlayer, review)
     lost += 1
-    events.push({ type: 'customerLost', slot: c.slot, customerId: c.id })
+    events.push({ type: 'customerLost', slot: c.slot, customerId: c.id, review })
     return { ...c, patience: 0, status: 'leaving', mood: 'angry', leaveTimer: CUSTOMERS.leaveDuration }
   })
 
@@ -54,25 +61,26 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
   }
 
   const elapsed = session.elapsed + dt
-  const ended = elapsed >= SHIFT.durationSeconds
+  const closing = isClosing(elapsed)
 
   spawnTimer -= dt
-  if (!ended && spawnTimer <= 0) {
+  if (!closing && spawnTimer <= 0) {
     const free = firstFreeSlot(slots)
     if (free >= 0) {
       const [customer, s1] = rollCustomer(
         rngState,
-        player.level,
+        nextPlayer.level,
         nextCustomerId,
         free,
         slots.flatMap((c) => (c ? [c.variant] : [])),
+        { prices: nextPlayer.prices, reputation: nextPlayer.reputation },
       )
-      const [wait, s2] = randomRange(s1, CUSTOMERS.spawnIntervalMin, CUSTOMERS.spawnIntervalMax)
+      const [jitter, s2] = nextRandom(s1)
       slots[free] = customer
       events.push({ type: 'customerArrived', slot: free, customerId: customer.id })
       nextCustomerId += 1
       rngState = s2
-      spawnTimer = wait
+      spawnTimer = spawnInterval(elapsed, session.dayMultiplier, nextPlayer.reputation, nextPlayer.prices, jitter)
     } else {
       spawnTimer = 0 // balcão cheio: o próximo chega assim que abrir uma vaga
     }
@@ -85,6 +93,9 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
     if (idx >= 0) selectedSlot = idx
   }
 
+  // Depois de fechar, o dia acaba quando o balcão esvazia (ou ao fim da tolerância).
+  const ended =
+    (closing && slots.every((c) => c === null)) || elapsed >= SHIFT.durationSeconds + DEMAND.closingGraceSeconds
   if (ended) events.push({ type: 'shiftEnded' })
 
   return {
@@ -104,7 +115,7 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
       selectedSlot,
       stats: { ...session.stats, lost },
     },
-    player: reputation === player.reputation ? player : { ...player, reputation },
+    player: nextPlayer,
     events,
   }
 }

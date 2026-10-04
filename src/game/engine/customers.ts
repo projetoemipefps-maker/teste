@@ -1,6 +1,8 @@
 import { COMBOS, CUP_SIZES, CUSTOMERS, RECIPES, type Recipe } from '../config'
+import { orderPriceRatio, patienceFactorFromPrice } from './pricing'
+import { patienceFactorForReputation } from './reputation'
 import { nextRandom, randomInt } from './rng'
-import type { Customer, OrderItems } from './types'
+import type { Customer, OrderItems, Prices } from './types'
 
 export function getRecipe(id: string): Recipe {
   const recipe = RECIPES.find((r) => r.id === id)
@@ -59,19 +61,24 @@ export function rollCustomer(
   level: number,
   id: number,
   slot: number,
-  usedVariants: readonly number[] = [],
+  usedVariants: readonly number[],
+  context: { prices: Prices; reputation: number },
 ): [Customer, number] {
   const [order, s1] = rollOrder(rngState, level)
+  const priceRatio = orderPriceRatio(order, context.prices)
   const all = Array.from({ length: CUSTOMERS.variantCount }, (_, i) => i)
   const free = all.filter((v) => !usedVariants.includes(v))
   const options = free.length > 0 ? free : all
   const [idx, s2] = randomInt(s1, 0, options.length - 1)
-  const patienceMax = patienceFor(order)
+  // Reputação alta e preço baixo deixam o cliente mais paciente.
+  const patienceMax =
+    patienceFor(order) * patienceFactorForReputation(context.reputation) * patienceFactorFromPrice(priceRatio)
   return [
     {
       id,
       slot,
       order,
+      priceRatio,
       variant: options[idx]!,
       patienceMax,
       patience: patienceMax,

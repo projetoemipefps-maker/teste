@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Fryer, FriesCarton, FriesPile, friesHeatColor } from '@/art'
-import { FRYER } from '@/game/config'
+import { FRYER, UI_LIMITS } from '@/game/config'
 import { friesQuality, friesStage, type FriesStage } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { Button } from '../Button'
@@ -18,6 +18,7 @@ const STAGE_LABEL: Record<FriesStage, { text: string; cls: string }> = {
 function Basket({ index }: { index: number }) {
   const basket = useGameStore((s) => s.session.fryer[index] ?? null)
   const place = useGameStore((s) => s.placeFries)
+  const stock = useGameStore((s) => s.session.stock.potato)
   const stage = basket ? friesStage(basket.cook) : null
 
   return (
@@ -60,15 +61,19 @@ function Basket({ index }: { index: number }) {
               key="empty"
               type="button"
               aria-label={`Colocar batata na fritadeira (cesto ${index + 1})`}
+              disabled={stock <= 0}
               onClick={() => place(index)}
-              className="flex h-[80px] w-[80px] flex-col items-center justify-center gap-0.5 rounded-full border-4 border-dashed border-white/70 bg-black/15 font-display text-white"
+              className={`flex h-[80px] w-[80px] flex-col items-center justify-center gap-0.5 rounded-full border-4 border-dashed border-white/70 bg-black/15 font-display text-white ${stock <= 0 ? 'opacity-40 grayscale' : ''}`}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               whileTap={{ scale: 0.93 }}
             >
-              <span className="text-3xl leading-none">+</span>
-              <span className="text-xs leading-none">Batata</span>
+              <span className="text-2xl leading-none">{stock <= 0 ? '×' : '+'}</span>
+              <span className="text-xs leading-none">{stock <= 0 ? 'Acabou' : 'Batata'}</span>
+              {stock > 0 && (
+                <span className={`rounded-full px-1.5 text-[10px] leading-tight ${stock <= UI_LIMITS.lowStock ? 'bg-orange text-white' : 'bg-white/25'}`}>×{stock}</span>
+              )}
             </motion.button>
           )}
         </AnimatePresence>

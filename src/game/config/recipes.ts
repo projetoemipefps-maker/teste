@@ -7,27 +7,29 @@ export interface Recipe {
   ingredients: readonly IngredientId[]
   /** Nível mínimo para a receita aparecer nos pedidos. */
   unlockLevel: number
+  /** Preço de venda padrão (R$); o jogador pode ajustar dentro dos limites de `PRICING`. */
+  basePrice: number
 }
 
 export const RECIPES: readonly Recipe[] = [
-  { id: 'simples', name: 'Simples', ingredients: ['bunBottom', 'patty', 'bunTop'], unlockLevel: 1 },
-  { id: 'x-burger', name: 'X-Burger', ingredients: ['bunBottom', 'patty', 'cheese', 'bunTop'], unlockLevel: 1 },
+  { id: 'simples', name: 'Simples', ingredients: ['bunBottom', 'patty', 'bunTop'], unlockLevel: 1, basePrice: 14 },
+  { id: 'x-burger', name: 'X-Burger', ingredients: ['bunBottom', 'patty', 'cheese', 'bunTop'], unlockLevel: 1, basePrice: 17 },
   {
     id: 'classico',
     name: 'Clássico',
     ingredients: ['bunBottom', 'patty', 'lettuce', 'tomato', 'bunTop'],
-    unlockLevel: 1,
+    unlockLevel: 1, basePrice: 18,
   },
   {
     id: 'x-salada',
     name: 'X-Salada',
     ingredients: ['bunBottom', 'patty', 'cheese', 'lettuce', 'tomato', 'bunTop'],
-    unlockLevel: 1,
+    unlockLevel: 1, basePrice: 21,
   },
   {
     id: 'duplo',
     name: 'Duplo',
     ingredients: ['bunBottom', 'patty', 'cheese', 'patty', 'bunTop'],
-    unlockLevel: 1,
+    unlockLevel: 1, basePrice: 26,
   },
 ]

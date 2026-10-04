@@ -4,35 +4,46 @@ import {
   addPattyToBurger,
   addToBurger,
   chooseCup,
+  closeDay,
+  createPlayer,
   createSession,
   cupToTray,
+  dayMultiplier,
   discardBurger,
   discardCup,
   discardTrayItem,
   flipPatty,
   friesToTray,
   isClosed,
+  openDay,
   placeFries,
   placeRawPatty,
+  purchaseStock,
+  restoreDayStart,
   selectSlot,
   sendBurgerToTray,
   serveOrder,
   setPouring,
+  setPrice,
   step,
   takeFries,
+  takeLoan,
   takePatty,
   type ActionResult,
+  type Cart,
   type CupSize,
+  type DaySummary,
   type GameEvent,
   type PlayerState,
   type SessionState,
   type TrayItem,
 } from '../engine'
 import { emitGameEvents } from '../loop/eventBus'
-import { SAVE_VERSION, defaultPlayer, defaultSave, migrateSave, sanitizeSave } from './migrations'
+import { SAVE_VERSION, defaultSave, migrateSave, sanitizeSave } from './migrations'
+import { createThrottledStorage } from './storage'
 import { UI_TIMING, type IngredientId } from '../config'
 
-export type Screen = 'title' | 'kitchen' | 'settings'
+export type Screen = 'title' | 'prep' | 'kitchen' | 'summary' | 'bankrupt' | 'settings'
 
 interface GameState {
   screen: Screen
@@ -41,14 +52,26 @@ interface GameState {
   settings: { reduceMotion: boolean }
   session: SessionState
   paused: boolean
+  /** Resumo do último dia fechado (não vai para o save). */
+  summary: DaySummary | null
+  /** Aviso mostrado na preparação (ex.: dia interrompido). */
+  notice: string | null
+  reviewsOpen: boolean
 
   goTo: (screen: Screen) => void
   newGame: () => void
   continueGame: () => void
-  nextDay: () => void
+  openShop: () => void
+  afterSummary: () => void
   setPaused: (paused: boolean) => void
+  setReviewsOpen: (open: boolean) => void
+  dismissNotice: () => void
   setReduceMotion: (value: boolean) => void
   eraseSave: () => void
+
+  buyStock: (cart: Cart) => void
+  setPrice: (key: string, value: number) => void
+  takeLoan: () => void
 
   tick: (dt: number) => void
   selectSlot: (slot: number) => void
@@ -72,6 +95,8 @@ interface GameState {
 
 const newSeed = () => (Math.random() * 0xffffffff) >>> 0
 
+const INTERRUPTED_NOTICE = 'O dia anterior foi interrompido. Ele recomeça do início, com o estoque e o caixa de antes.'
+
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => {
@@ -85,42 +110,91 @@ export const useGameStore = create<GameState>()(
         const r = fn(get().session)
         if (r.session !== get().session) apply(r)
       }
+      const emptySession = () => createSession(newSeed())
+
+      /** Fecha o dia uma única vez: só vale com a cozinha aberta e o turno acabado. */
+      const finishDay = () => {
+        const { player, session, screen } = get()
+        if (screen !== 'kitchen' || !session.ended) return
+        const closed = closeDay(player, session)
+        set({ player: closed.player, summary: closed.summary, screen: 'summary', paused: false, reviewsOpen: false })
+      }
 
       return {
         screen: 'title',
         hasSave: false,
-        player: defaultPlayer(),
+        player: createPlayer(),
         settings: defaultSave().settings,
-        session: createSession(newSeed()),
+        session: emptySession(),
         paused: false,
+        summary: null,
+        notice: null,
+        reviewsOpen: false,
 
         goTo: (screen) => set({ screen }),
         newGame: () =>
           set({
             hasSave: true,
-            player: defaultPlayer(),
-            session: createSession(newSeed()),
+            player: createPlayer(),
+            session: emptySession(),
             paused: false,
-            screen: 'kitchen',
+            summary: null,
+            notice: null,
+            reviewsOpen: false,
+            screen: 'prep',
           }),
-        continueGame: () => set({ session: createSession(newSeed()), paused: false, screen: 'kitchen' }),
-        nextDay: () =>
-          set((s) => ({
-            player: { ...s.player, day: s.player.day + 1 },
-            session: createSession(newSeed()),
+        continueGame: () => {
+          const { player } = get()
+          if (player.bankrupt) return set({ screen: 'bankrupt', summary: null })
+          const interrupted = player.phase === 'open'
+          set({
+            player: restoreDayStart(player),
+            notice: interrupted ? INTERRUPTED_NOTICE : null,
+            session: emptySession(),
             paused: false,
-          })),
+            reviewsOpen: false,
+            screen: 'prep',
+          })
+        },
+        openShop: () => {
+          const { player } = get()
+          if (player.bankrupt) return
+          const opened = openDay(player)
+          set({
+            player: opened,
+            session: createSession(newSeed(), { stock: opened.stock, dayMultiplier: dayMultiplier(opened.day) }),
+            paused: false,
+            notice: null,
+            summary: null,
+            screen: 'kitchen',
+          })
+        },
+        afterSummary: () => set((s) => ({ screen: s.player.bankrupt ? 'bankrupt' : 'prep' })),
         setPaused: (paused) =>
           set((s) => ({ paused, session: paused ? setPouring(s.session, false) : s.session })),
+        setReviewsOpen: (reviewsOpen) => set({ reviewsOpen }),
+        dismissNotice: () => set({ notice: null }),
         setReduceMotion: (reduceMotion) => set((s) => ({ settings: { ...s.settings, reduceMotion } })),
         eraseSave: () =>
-          set({ hasSave: false, player: defaultPlayer(), session: createSession(newSeed()), paused: false }),
+          set({
+            hasSave: false,
+            player: createPlayer(),
+            session: emptySession(),
+            paused: false,
+            summary: null,
+            notice: null,
+          }),
+
+        buyStock: (cart) => set((s) => ({ player: purchaseStock(s.player, cart) })),
+        setPrice: (key, value) => set((s) => ({ player: setPrice(s.player, key, value) })),
+        takeLoan: () => set((s) => ({ player: takeLoan(s.player) })),
 
         tick: (dt) => {
           const { session, player } = get()
           const r = step(session, player, dt)
           set({ session: r.session, ...(r.player !== player && { player: r.player }) })
           if (r.events.length) emitGameEvents(r.events)
+          if (r.session.ended && !session.ended) finishDay()
         },
         selectSlot: (slot) => set((s) => ({ session: selectSlot(s.session, slot) })),
         addIngredient: (id) => {
@@ -156,6 +230,7 @@ export const useGameStore = create<GameState>()(
     {
       name: 'brasa-burger-save',
       version: SAVE_VERSION,
+      storage: createThrottledStorage(),
       partialize: (s) => ({ hasSave: s.hasSave, player: s.player, settings: s.settings }),
       migrate: (persisted, version) => migrateSave(persisted, version),
       merge: (persisted, current) => ({ ...current, ...sanitizeSave(persisted) }),

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { FlipIcon, PattyDisc, pattyHeatColor } from '@/art'
-import { GRILL } from '@/game/config'
+import { GRILL, UI_LIMITS } from '@/game/config'
 import { pattyHint, pattyStage, type GrillPatty, type PattyStage } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { Button } from '../Button'
@@ -26,6 +26,7 @@ function GrillSlot({ slot }: { slot: number }) {
   const patty = useGameStore((s) => s.session.grill[slot] ?? null)
   const heldFull = useGameStore((s) => s.session.held.length >= GRILL.heldCapacity)
   const place = useGameStore((s) => s.placePatty)
+  const stock = useGameStore((s) => s.session.stock.patty)
   const flip = useGameStore((s) => s.flipPatty)
   const take = useGameStore((s) => s.takePatty)
 
@@ -40,15 +41,19 @@ function GrillSlot({ slot }: { slot: number }) {
               key="empty"
               type="button"
               aria-label={`Colocar carne crua na chapa (espaço ${slot + 1})`}
+              disabled={stock <= 0}
               onClick={() => place(slot)}
-              className="flex h-[96px] w-[96px] flex-col items-center justify-center rounded-full border-4 border-dashed border-white/55 bg-black/20 font-display text-white/90"
+              className={`flex h-[96px] w-[96px] flex-col items-center justify-center rounded-full border-4 border-dashed border-white/55 bg-black/20 font-display text-white/90 ${stock <= 0 ? 'opacity-40 grayscale' : ''}`}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               whileTap={{ scale: 0.93 }}
             >
-              <span className="text-3xl leading-none">+</span>
-              <span className="text-xs leading-none">Carne crua</span>
+              <span className="text-3xl leading-none">{stock <= 0 ? '×' : '+'}</span>
+              <span className="text-xs leading-none">{stock <= 0 ? 'Acabou a carne' : 'Carne crua'}</span>
+              {stock > 0 && (
+                <span className={`mt-0.5 rounded-full px-1.5 text-[10px] leading-tight ${stock <= UI_LIMITS.lowStock ? 'bg-orange text-white' : 'bg-white/25'}`}>×{stock}</span>
+              )}
             </motion.button>
           )}
         </AnimatePresence>

@@ -87,6 +87,9 @@ export function ScorePopup() {
               <div className="my-0.5 h-0.5 rounded bg-ink/15" />
               <Row label="Total" value={served.total} strong />
             </div>
+            <p className="mt-1.5 text-center text-[13px] leading-snug text-ink">
+              <b>{served.review.name}:</b> “{served.review.text}”
+            </p>
             <div className="mt-1.5 flex flex-wrap justify-center gap-1">
               {served.notes.slice(0, 5).map((n, i) => (
                 <motion.span

@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion'
 import type { PointerEvent } from 'react'
 import { CUP_SCALE, Cup, SodaMachine } from '@/art'
-import { CUP_SIZES, DRINKS, type CupSize } from '@/game/config'
-import { cupFillRatio, cupQuality } from '@/game/engine'
+import { CUP_SIZES, DRINKS, UI_LIMITS, type CupSize } from '@/game/config'
+import { canChooseCup, cupFillRatio, cupQuality } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { Button } from '../Button'
 
@@ -54,7 +54,8 @@ function PourButton({ disabled }: { disabled: boolean }) {
 }
 
 export function DrinkPanel() {
-  const cup = useGameStore((s) => s.session.cup)
+  const session = useGameStore((s) => s.session)
+  const cup = session.cup
   const pouring = useGameStore((s) => s.session.pouring)
   const trayHasDrink = useGameStore((s) => s.session.tray.drink !== null)
   const chooseCup = useGameStore((s) => s.chooseCup)
@@ -127,28 +128,33 @@ export function DrinkPanel() {
         <div className="grid grid-cols-3 gap-2">
           {CUP_SIZES.map((size) => {
             const selected = cup?.size === size
+            const available = canChooseCup(session, size) || selected
             return (
               <motion.button
                 key={size}
                 type="button"
                 aria-label={`Copo ${DRINKS.cups[size].name.toLowerCase()}, ${DRINKS.cups[size].capacity} ml`}
                 aria-pressed={selected}
+                disabled={!available}
                 onClick={() => chooseCup(size)}
-                className={`flex h-[74px] flex-col items-center justify-end rounded-xl border-4 border-ink px-1 pb-1 ${
+                className={`relative flex h-[74px] flex-col items-center justify-end rounded-xl border-4 border-ink px-1 pb-1 ${
                   selected ? 'bg-mustard' : 'bg-gradient-to-b from-[#FFF8EA] to-cream-dark'
-                }`}
+                } ${available ? '' : 'opacity-40 grayscale'}`}
                 style={{ boxShadow: '0 4px 0 #3B1F0E' }}
                 whileTap={{ y: 4, boxShadow: '0 0 0 #3B1F0E' }}
               >
                 <Cup id={`pick-${size}`} size={size} level={0} className="h-[42px] w-[42px] overflow-visible" />
                 <span className="font-display text-lg leading-none text-ink">{DRINKS.cups[size].short}</span>
-                <span className="text-[10px] leading-tight text-ink/70">{DRINKS.cups[size].capacity} ml</span>
+                <span className="text-[10px] leading-tight text-ink/70">{available ? `${DRINKS.cups[size].capacity} ml` : 'Sem refri'}</span>
               </motion.button>
             )
           })}
         </div>
 
         <p className={`text-center font-display text-lg leading-none [text-shadow:0_2px_0_#3B1F0E] ${status.cls}`}>{status.text}</p>
+        <p className="-mt-1 text-center text-[11px] leading-none text-white [text-shadow:0_1px_0_#3B1F0E]">
+          Refrigerante no estoque: <b className={session.stock.soda <= UI_LIMITS.lowStock ? 'text-mustard-light' : ''}>{session.stock.soda}</b> un
+        </p>
 
         <PourButton disabled={!cup} />
 

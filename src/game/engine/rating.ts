@@ -1,21 +1,7 @@
-import { PROGRESSION, RATING } from '../config'
+import { RATING } from '../config'
 import { matchesRecipe } from './burger'
 import { getRecipe } from './customers'
 import type { OrderItems, ServiceNote, Tray } from './types'
-
-export function clampReputation(value: number): number {
-  return Math.min(PROGRESSION.maxReputation, Math.max(0, value))
-}
-
-export function applyReputation(current: number, delta: number): number {
-  return clampReputation(current + delta)
-}
-
-export function reputationForStars(stars: number): number {
-  return PROGRESSION.reputation.byStars[clampStars(stars) - 1] ?? 0
-}
-
-export const reputationLost = (): number => PROGRESSION.reputation.lost
 
 /** Quanto da estrela `index` (0-based) está preenchida, de 0 a 1. */
 export function starFill(reputation: number, index: number): number {

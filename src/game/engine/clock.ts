@@ -13,3 +13,6 @@ export function formatClock(elapsed: number): string {
   const m = totalMinutes % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
+
+/** Passou do horário de fechamento: não chegam mais clientes. */
+export const isClosing = (elapsed: number): boolean => elapsed >= SHIFT.durationSeconds

@@ -4,17 +4,15 @@ export type IngredientId = (typeof INGREDIENT_IDS)[number]
 export interface IngredientConfig {
   id: IngredientId
   name: string
-  /** Custo do ingrediente, base do preço de venda do lanche (R$). */
-  cost: number
 }
 
 export const INGREDIENTS: Record<IngredientId, IngredientConfig> = {
-  bunBottom: { id: 'bunBottom', name: 'Pão de baixo', cost: 2 },
-  patty: { id: 'patty', name: 'Hambúrguer', cost: 5 },
-  cheese: { id: 'cheese', name: 'Queijo', cost: 2 },
-  lettuce: { id: 'lettuce', name: 'Alface', cost: 1 },
-  tomato: { id: 'tomato', name: 'Tomate', cost: 1 },
-  bunTop: { id: 'bunTop', name: 'Pão de cima', cost: 2 },
+  bunBottom: { id: 'bunBottom', name: 'Pão de baixo' },
+  patty: { id: 'patty', name: 'Hambúrguer' },
+  cheese: { id: 'cheese', name: 'Queijo' },
+  lettuce: { id: 'lettuce', name: 'Alface' },
+  tomato: { id: 'tomato', name: 'Tomate' },
+  bunTop: { id: 'bunTop', name: 'Pão de cima' },
 }
 
 /** Ordem das bandejas na bancada (da esquerda para a direita, de cima para baixo). */

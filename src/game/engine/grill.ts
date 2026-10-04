@@ -1,4 +1,5 @@
-import { GRILL } from '../config'
+import { GRILL, INGREDIENT_STOCK } from '../config'
+import { hasStock, useStock } from './stock'
 import type { ActionResult, GrillPatty, PattyQuality, PattyStage, SessionState } from './types'
 
 export function createPatty(): GrillPatty {
@@ -36,13 +37,15 @@ export function pattyHint(patty: GrillPatty): PattyHint {
   return null
 }
 
+/** Põe uma carne crua na chapa (gasta 1 carne do estoque). */
 export function placeRawPatty(session: SessionState, slot: number): ActionResult {
-  if (session.ended || slot < 0 || slot >= session.grill.length || session.grill[slot]) {
+  const stockId = INGREDIENT_STOCK.patty!
+  if (session.ended || slot < 0 || slot >= session.grill.length || session.grill[slot] || !hasStock(session.stock, stockId)) {
     return { session, events: [] }
   }
   const grill = [...session.grill]
   grill[slot] = createPatty()
-  return { session: { ...session, grill }, events: [{ type: 'pattyPlaced', slot }] }
+  return { session: { ...session, grill, stock: useStock(session.stock, stockId) }, events: [{ type: 'pattyPlaced', slot }] }
 }
 
 /** Vira a carne: o lado de cima vai para a chapa. Pode virar quantas vezes quiser. */

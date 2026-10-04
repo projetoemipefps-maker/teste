@@ -7,15 +7,17 @@ export interface CupConfig {
   short: string
   /** Capacidade em ml. */
   capacity: number
-  /** Preço da bebida (R$). */
-  price: number
+  /** Preço de venda padrão da bebida (R$). */
+  basePrice: number
+  /** Unidades de refrigerante (estoque) gastas por copo. */
+  sodaUnits: number
 }
 
 export const DRINKS = {
   cups: {
-    small: { name: 'Pequeno', short: 'P', capacity: 300, price: 4 },
-    medium: { name: 'Médio', short: 'M', capacity: 400, price: 6 },
-    large: { name: 'Grande', short: 'G', capacity: 500, price: 8 },
+    small: { name: 'Pequeno', short: 'P', capacity: 300, basePrice: 5, sodaUnits: 1 },
+    medium: { name: 'Médio', short: 'M', capacity: 400, basePrice: 8, sodaUnits: 2 },
+    large: { name: 'Grande', short: 'G', capacity: 500, basePrice: 10, sodaUnits: 3 },
   } satisfies Record<CupSize, CupConfig>,
   /** Vazão da máquina em ml por segundo. */
   fillRate: 120,

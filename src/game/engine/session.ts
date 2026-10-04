@@ -1,9 +1,19 @@
-import { CUSTOMERS, FRYER, GRILL, CLOSING_INGREDIENT, type IngredientId } from '../config'
+import { CLOSING_INGREDIENT, CUSTOMERS, FRYER, GRILL, INGREDIENT_STOCK, type IngredientId } from '../config'
 import { addIngredient, canAddIngredient, isClosed } from './burger'
-import type { ActionResult, SessionState, TrayItem } from './types'
+import { hasStock, startingStock, useStock } from './stock'
+import type { ActionResult, SessionState, Stock, TrayItem } from './types'
 
-export function createSession(seed: number): SessionState {
+export interface SessionOptions {
+  /** Estoque com que o dia começa (padrão: o estoque inicial do jogo). */
+  stock?: Stock
+  /** Movimento do dia (padrão: 1). */
+  dayMultiplier?: number
+}
+
+export function createSession(seed: number, options: SessionOptions = {}): SessionState {
   return {
+    stock: options.stock ?? startingStock(),
+    dayMultiplier: options.dayMultiplier ?? 1,
     slots: Array.from({ length: CUSTOMERS.maxSlots }, () => null),
     burger: [],
     burgerPatties: [],
@@ -20,7 +30,7 @@ export function createSession(seed: number): SessionState {
     nextCustomerId: 1,
     rngState: seed >>> 0,
     ended: false,
-    stats: { served: 0, lost: 0, earned: 0, starsTotal: 0 },
+    stats: { served: 0, lost: 0, revenue: 0, tips: 0, starsTotal: 0, xpGained: 0, soldByRecipe: {} },
   }
 }
 
@@ -31,18 +41,25 @@ export function selectSlot(session: SessionState, slot: number): SessionState {
   return { ...session, selectedSlot: session.selectedSlot === slot ? null : slot }
 }
 
-/** O pão de cima só fecha o lanche se a bandeja estiver livre para recebê-lo. */
+/** O pão de cima só fecha o lanche se a bandeja estiver livre; os demais precisam de estoque. */
 export function canAddToBurger(session: SessionState, ingredient: IngredientId): boolean {
   if (session.ended || ingredient === 'patty') return false
   if (ingredient === CLOSING_INGREDIENT && session.tray.burger) return false
+  const stockId = INGREDIENT_STOCK[ingredient]
+  if (stockId && !hasStock(session.stock, stockId)) return false
   return canAddIngredient(session.burger, ingredient)
 }
 
 /** Adiciona um ingrediente que não precisa de cozimento. A carne entra por `addPattyToBurger`. */
 export function addToBurger(session: SessionState, ingredient: IngredientId): ActionResult {
   if (!canAddToBurger(session, ingredient)) return { session, events: [] }
+  const stockId = INGREDIENT_STOCK[ingredient]
   return {
-    session: { ...session, burger: [...addIngredient(session.burger, ingredient)] },
+    session: {
+      ...session,
+      stock: stockId ? useStock(session.stock, stockId) : session.stock,
+      burger: [...addIngredient(session.burger, ingredient)],
+    },
     events: [{ type: 'ingredientAdded', ingredient }],
   }
 }

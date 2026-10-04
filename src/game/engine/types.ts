@@ -1,6 +1,13 @@
-import type { CupSize, IngredientId } from '../config'
+import type { CupSize, IngredientId, StockId } from '../config'
 
-export type { CupSize }
+export type { CupSize, StockId }
+
+/** Quantidade de cada item do estoque. */
+export type Stock = Record<StockId, number>
+/** Dias parado de cada item fresco. */
+export type StockAges = Partial<Record<StockId, number>>
+/** Preços de venda: `recipe:<id>`, `fries`, `drink:<tamanho>`. */
+export type Prices = Record<string, number>
 
 export type Mood = 'neutral' | 'happy' | 'angry'
 
@@ -15,6 +22,8 @@ export interface Customer {
   id: number
   slot: number
   order: OrderItems
+  /** Preço do pedido em relação ao preço padrão (1 = padrão); afeta paciência e gorjeta. */
+  priceRatio: number
   variant: number
   patienceMax: number
   patience: number
@@ -75,13 +84,23 @@ export type TrayItem = keyof Tray
 export interface ShiftStats {
   served: number
   lost: number
-  earned: number
+  /** Valor pago pelos itens (faturamento). */
+  revenue: number
+  /** Gorjetas + bônus de carne no ponto. */
+  tips: number
   /** Soma das notas dos atendimentos (para a média). */
   starsTotal: number
+  xpGained: number
+  /** Lanches entregues certos, por receita (para o "mais vendido"). */
+  soldByRecipe: Record<string, number>
 }
 
 /** Estado de um turno em andamento (não vai para o save). */
 export interface SessionState {
+  /** Estoque do dia: começa igual ao do jogador e é gasto durante o turno. */
+  stock: Stock
+  /** Movimento do dia (a "previsão"), que multiplica a chegada de clientes. */
+  dayMultiplier: number
   slots: (Customer | null)[]
   /** Lanche sendo montado e o ponto de cada carne nele. */
   burger: IngredientId[]
@@ -103,14 +122,46 @@ export interface SessionState {
   stats: ShiftStats
 }
 
-/** Progresso do jogador (vai para o save). */
-export interface PlayerState {
+export interface Review {
+  id: string
+  day: number
+  stars: number
+  text: string
+  name: string
+}
+
+export interface LoanState {
+  /** Já pediu o empréstimo (só dá para pedir uma vez). */
+  taken: boolean
+  installmentsLeft: number
+  installment: number
+}
+
+/** Tudo o que o jogador acumula (vai para o save), sem o controle do dia em andamento. */
+export interface PlayerCore {
   money: number
   xp: number
   level: number
   day: number
-  /** Reputação em estrelas, de 0 a 5 (fracionária). */
+  /** Reputação em estrelas (0 a 5), calculada pelas avaliações recentes. */
   reputation: number
+  stock: Stock
+  stockAge: StockAges
+  prices: Prices
+  /** Avaliações, da mais recente para a mais antiga. */
+  reviews: Review[]
+  loan: LoanState
+  /** Dias seguidos fechando com o caixa negativo. */
+  debtDays: number
+  /** Quanto foi gasto em estoque na preparação do dia atual. */
+  todayPurchases: number
+  bankrupt: boolean
+}
+
+export interface PlayerState extends PlayerCore {
+  /** 'open' = o dia está em andamento (se a página recarregar, o dia recomeça de `dayStart`). */
+  phase: 'prep' | 'open'
+  dayStart: PlayerCore | null
 }
 
 export type ServiceNote =
@@ -157,8 +208,9 @@ export type GameEvent =
       total: number
       notes: ServiceNote[]
       xp: number
+      review: Review
     }
-  | { type: 'customerLost'; slot: number; customerId: number }
+  | { type: 'customerLost'; slot: number; customerId: number; review: Review }
   | { type: 'leveledUp'; level: number }
   | { type: 'shiftEnded' }
 

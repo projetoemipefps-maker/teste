@@ -3,10 +3,10 @@ import { FRYER } from '../config'
 import { createSession } from './session'
 import { friesQuality, friesStage, friesToTray, placeFries, takeFries } from './fryer'
 import { step } from './tick'
-import { PROGRESSION } from '../config'
+import { testPlayer } from './testing'
 import type { PlayerState, SessionState } from './types'
 
-const player = (): PlayerState => ({ money: 0, xp: 0, level: 1, day: 1, reputation: PROGRESSION.startingReputation })
+const player = (): PlayerState => testPlayer()
 const base = (): SessionState => ({ ...createSession(1), spawnTimer: 999 })
 
 function fry(s: SessionState, seconds: number) {

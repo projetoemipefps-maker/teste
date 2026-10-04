@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { DRINKS, PROGRESSION } from '../config'
+import { DRINKS } from '../config'
 import { chooseCup, cupFillRatio, cupQuality, cupToTray, discardCup, setPouring } from './drinks'
 import { createSession } from './session'
 import { step } from './tick'
+import { testPlayer } from './testing'
 import type { PlayerState, SessionState } from './types'
 
-const player = (): PlayerState => ({ money: 0, xp: 0, level: 1, day: 1, reputation: PROGRESSION.startingReputation })
+const player = (): PlayerState => testPlayer()
 const base = (): SessionState => ({ ...createSession(1), spawnTimer: 999 })
 
 /** Segura o botão por `seconds` (em passos curtos). */

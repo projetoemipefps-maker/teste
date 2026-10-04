@@ -12,9 +12,4 @@ export const PROGRESSION = {
 
   startingReputation: 3,
   maxReputation: 5,
-  reputation: {
-    /** Variação da reputação por nota (índice 0 = 1 estrela). */
-    byStars: [-0.3, -0.15, 0, 0.08, 0.15],
-    lost: -0.4,
-  },
 } as const

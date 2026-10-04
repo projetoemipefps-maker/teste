@@ -1,29 +1,37 @@
 import { describe, expect, it } from 'vitest'
 import { DRINKS, ECONOMY, RECIPES } from '../config'
-import { computeTip, drinkPrice, orderPrice, perfectPattyBonus, recipePrice, wrongItemPay } from './payment'
+import { computeTip, perfectPattyBonus, wrongItemPay } from './payment'
+import { FRIES_KEY, defaultPrices, drinkKey, itemPrice, orderPrice, recipeKey } from './pricing'
 
-const simples = RECIPES.find((r) => r.id === 'simples')!
+const prices = defaultPrices()
 
-describe('preços e gorjeta', () => {
-  it('preço do lanche = custo dos ingredientes × markup', () => {
-    // pão 2 + hambúrguer 5 + pão 2 = 9 × 1.6 = 14.4 → 14
-    expect(recipePrice(simples)).toBe(Math.round(9 * ECONOMY.priceMarkup))
-  })
-
+describe('preços do pedido', () => {
   it('o preço do pedido soma lanche, batata e bebida', () => {
-    const base = recipePrice(simples)
-    expect(orderPrice({ recipeId: 'simples', fries: false, drink: null })).toBe(base)
-    expect(orderPrice({ recipeId: 'simples', fries: true, drink: null })).toBe(base + ECONOMY.friesPrice)
-    expect(orderPrice({ recipeId: 'simples', fries: true, drink: 'large' })).toBe(
-      base + ECONOMY.friesPrice + DRINKS.cups.large.price,
+    const base = itemPrice(prices, recipeKey('simples'))
+    expect(orderPrice({ recipeId: 'simples', fries: false, drink: null }, prices)).toBe(base)
+    expect(orderPrice({ recipeId: 'simples', fries: true, drink: null }, prices)).toBe(base + ECONOMY.friesBasePrice)
+    expect(orderPrice({ recipeId: 'simples', fries: true, drink: 'large' }, prices)).toBe(
+      base + ECONOMY.friesBasePrice + DRINKS.cups.large.basePrice,
     )
   })
 
-  it('copos maiores custam mais', () => {
-    expect(drinkPrice('large')).toBeGreaterThan(drinkPrice('medium'))
-    expect(drinkPrice('medium')).toBeGreaterThan(drinkPrice('small'))
+  it('usa os preços ajustados pelo jogador', () => {
+    const custom = { ...prices, [recipeKey('simples')]: 20, [FRIES_KEY]: 10, [drinkKey('small')]: 7 }
+    expect(orderPrice({ recipeId: 'simples', fries: true, drink: 'small' }, custom)).toBe(37)
   })
 
+  it('copos maiores custam mais por padrão', () => {
+    expect(itemPrice(prices, drinkKey('large'))).toBeGreaterThan(itemPrice(prices, drinkKey('medium')))
+    expect(itemPrice(prices, drinkKey('medium'))).toBeGreaterThan(itemPrice(prices, drinkKey('small')))
+  })
+
+  it('todo lanche e item vendidos têm preço padrão positivo', () => {
+    for (const r of RECIPES) expect(itemPrice(prices, recipeKey(r.id))).toBe(r.basePrice)
+    expect(Object.values(prices).every((p) => p > 0)).toBe(true)
+  })
+})
+
+describe('gorjeta e bônus', () => {
   it('item errado paga só uma fração', () => {
     expect(wrongItemPay(20)).toBe(Math.round(20 * ECONOMY.wrongPayFraction))
   })
@@ -35,6 +43,11 @@ describe('preços e gorjeta', () => {
     expect(computeTip(40, 4, 1)).toBeGreaterThan(computeTip(40, 3, 1))
     expect(computeTip(40, 5, 1)).toBeGreaterThan(computeTip(40, 5, 0))
     expect(computeTip(40, 5, 0)).toBeGreaterThan(0) // piso de rapidez
+  })
+
+  it('preço mais alto reduz a gorjeta, preço mais baixo aumenta', () => {
+    expect(computeTip(100, 5, 1, 1.4)).toBeLessThan(computeTip(100, 5, 1, 1))
+    expect(computeTip(100, 5, 1, 0.7)).toBeGreaterThan(computeTip(100, 5, 1, 1))
   })
 
   it('limita nota e razão de paciência', () => {

@@ -5,6 +5,7 @@ import { Counter } from '@/components/Counter'
 import { EffectsLayer } from '@/components/EffectsLayer'
 import { Hud } from '@/components/Hud'
 import { Modal } from '@/components/Modal'
+import { ReviewsList } from '@/components/ReviewsList'
 import { ScorePopup } from '@/components/ScorePopup'
 import { StationTabs, type Station } from '@/components/StationTabs'
 import { TrayStrip } from '@/components/TrayStrip'
@@ -21,6 +22,7 @@ function PauseModal() {
   return (
     <Modal title="Pausado">
       <div className="flex flex-col gap-4">
+        <p className="text-sm leading-snug text-ink/80">Se sair para o menu, o dia recomeça do início quando você voltar.</p>
         <Button variant="green" onClick={() => setPaused(false)}>Continuar</Button>
         <Button
           variant="brown"
@@ -36,31 +38,25 @@ function PauseModal() {
   )
 }
 
-function SummaryModal() {
-  const stats = useGameStore((s) => s.session.stats)
-  const day = useGameStore((s) => s.player.day)
-  const nextDay = useGameStore((s) => s.nextDay)
-  const goTo = useGameStore((s) => s.goTo)
-  const rows: [string, string][] = [
-    ['Atendidos', String(stats.served)],
-    ['Nota média', stats.served > 0 ? `${(stats.starsTotal / stats.served).toFixed(1)} ★` : '—'],
-    ['Clientes perdidos', String(stats.lost)],
-    ['Faturamento', `R$ ${stats.earned}`],
-  ]
+function ReviewsModal() {
+  const player = useGameStore((s) => s.player)
+  const close = useGameStore((s) => s.setReviewsOpen)
+  const setPaused = useGameStore((s) => s.setPaused)
   return (
-    <Modal title={`Fim do dia ${day}`}>
-      <dl className="mb-5 flex flex-col gap-2">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex items-center justify-between rounded-xl border-[3px] border-ink bg-white px-3 py-1.5">
-            <dt className="text-ink">{k}</dt>
-            <dd className="font-display text-xl text-tomato">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="flex flex-col gap-3">
-        <Button variant="green" onClick={nextDay}>Próximo dia</Button>
-        <Button variant="brown" onClick={() => goTo('title')} className="!py-2 !text-lg">Menu</Button>
+    <Modal title="Avaliações">
+      <div className="max-h-[52vh] overflow-y-auto pr-1 text-left">
+        <ReviewsList reviews={player.reviews} reputation={player.reputation} idPrefix="kit-rv" />
       </div>
+      <Button
+        variant="green"
+        className="mt-4 w-full"
+        onClick={() => {
+          close(false)
+          setPaused(false)
+        }}
+      >
+        Voltar ao jogo
+      </Button>
     </Modal>
   )
 }
@@ -84,6 +80,7 @@ export function KitchenScreen() {
   const scale = useKitchenScale()
   const [station, setStation] = useState<Station>('assembly')
   const paused = useGameStore((s) => s.paused)
+  const reviewsOpen = useGameStore((s) => s.reviewsOpen)
   const ended = useGameStore((s) => s.session.ended)
   const tick = useGameStore((s) => s.tick)
   const setPaused = useGameStore((s) => s.setPaused)
@@ -134,8 +131,8 @@ export function KitchenScreen() {
       <EffectsLayer />
       <ScorePopup />
       <AnimatePresence>
-        {paused && !ended && <PauseModal key="pause" />}
-        {ended && <SummaryModal key="summary" />}
+        {paused && !ended && !reviewsOpen && <PauseModal key="pause" />}
+        {reviewsOpen && <ReviewsModal key="reviews" />}
       </AnimatePresence>
     </div>
   )

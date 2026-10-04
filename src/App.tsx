@@ -1,6 +1,9 @@
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { useEffect } from 'react'
+import { BankruptScreen } from './screens/BankruptScreen'
 import { KitchenScreen } from './screens/KitchenScreen'
+import { PrepScreen } from './screens/PrepScreen'
+import { SummaryScreen } from './screens/SummaryScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { TitleScreen } from './screens/TitleScreen'
 import { useGameStore } from './game/store'
@@ -26,7 +29,10 @@ export function App() {
           transition={{ duration: 0.2 }}
         >
           {screen === 'title' && <TitleScreen />}
+          {screen === 'prep' && <PrepScreen />}
           {screen === 'kitchen' && <KitchenScreen />}
+          {screen === 'summary' && <SummaryScreen />}
+          {screen === 'bankrupt' && <BankruptScreen />}
           {screen === 'settings' && <SettingsScreen />}
         </motion.main>
       </AnimatePresence>

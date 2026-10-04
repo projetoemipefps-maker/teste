@@ -5,3 +5,8 @@ export const UI_TIMING = {
   /** Quanto tempo o popup de nota fica na tela. */
   scorePopupMs: 3000,
 } as const
+
+export const UI_LIMITS = {
+  /** Estoque a partir do qual o contador do ingrediente fica vermelho. */
+  lowStock: 3,
+} as const
