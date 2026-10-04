@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_TYPE_IDS,
   LOAN,
   MAX_STOCK,
   PROGRESSION,
@@ -6,12 +7,14 @@ import {
   REPUTATION,
   STOCK_IDS,
   STOCK_ITEMS,
+  type CustomerTypeId,
 } from '../config'
 import {
   clampPrice,
   computeReputation,
   createPlayer,
   menuItems,
+  startingStock,
   type LoanState,
   type PlayerCore,
   type PlayerState,
@@ -22,7 +25,7 @@ import {
 } from '../engine'
 
 /** Versão atual do formato do save. Some 1 a cada mudança e adicione a migração `vN → vN+1` abaixo. */
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 export interface Settings {
   reduceMotion: boolean
@@ -44,7 +47,24 @@ export type Migration = (data: Record<string, unknown>) => Record<string, unknow
 export const MIGRATIONS: Record<number, Migration> = {
   1: (data) => {
     const player = typeof data.player === 'object' && data.player !== null ? (data.player as Record<string, unknown>) : {}
-    return { ...data, player: { ...createPlayer(), ...player, reputation: PROGRESSION.startingReputation } }
+    // Os campos novos (estoque, preços, avaliações…) são completados na sanitização final.
+    return { ...data, player: { ...player, reputation: PROGRESSION.startingReputation } }
+  },
+  /**
+   * v2 → v3 (Etapa 4): novos ingredientes, acompanhamentos, bebidas e sobremesas. Os preços antigos mudam de chave
+   * (`fries` → `side:fries`, `drink:<tamanho>` → `drink:soda:<tamanho>`) e o estoque dos itens novos é completado
+   * conforme o nível do jogador (na sanitização).
+   */
+  2: (data) => {
+    const player = typeof data.player === 'object' && data.player !== null ? (data.player as Record<string, unknown>) : {}
+    const old = typeof player.prices === 'object' && player.prices !== null ? (player.prices as Record<string, unknown>) : {}
+    const prices: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(old)) {
+      if (key === 'fries') prices['side:fries'] = value
+      else if (/^drink:(small|medium|large)$/.test(key)) prices[`drink:soda:${key.slice(6)}`] = value
+      else prices[key] = value
+    }
+    return { ...data, player: { ...player, prices, dayBoost: 1 } }
   },
 }
 
@@ -73,6 +93,8 @@ function sanitizeReviews(raw: unknown): Review[] {
       stars: Math.round(num(r.stars, 3, 1, 5)),
       text: r.text.slice(0, 120),
       name: r.name.slice(0, 30),
+      ...(typeof r.weight === 'number' && Number.isFinite(r.weight) && { weight: Math.min(10, Math.max(0.5, r.weight)) }),
+      ...(typeof r.type === 'string' && (CUSTOMER_TYPE_IDS as readonly string[]).includes(r.type) && { type: r.type as CustomerTypeId }),
     })
   }
   return out.slice(0, REPUTATION.keepReviews)
@@ -81,13 +103,15 @@ function sanitizeReviews(raw: unknown): Review[] {
 function sanitizeCore(raw: unknown): PlayerCore {
   const def = createPlayer()
   const p = isRecord(raw) ? raw : {}
+  const level = Math.floor(num(p.level, def.level, 1, PROGRESSION.maxLevel))
+  const startStock = startingStock(level)
   const rawStock = isRecord(p.stock) ? p.stock : {}
   const rawAge = isRecord(p.stockAge) ? p.stockAge : {}
   const rawPrices = isRecord(p.prices) ? p.prices : {}
   const rawLoan = isRecord(p.loan) ? p.loan : {}
 
   const stock = Object.fromEntries(
-    STOCK_IDS.map((id) => [id, Math.floor(num(rawStock[id], def.stock[id], 0, MAX_STOCK))]),
+    STOCK_IDS.map((id) => [id, Math.floor(num(rawStock[id], startStock[id], 0, MAX_STOCK))]),
   ) as Stock
   const stockAge: StockAges = {}
   for (const id of STOCK_IDS) {
@@ -106,7 +130,7 @@ function sanitizeCore(raw: unknown): PlayerCore {
   return {
     money: Math.floor(num(p.money, def.money, -1e9, Number.MAX_SAFE_INTEGER)),
     xp: num(p.xp, def.xp, 0, Number.MAX_SAFE_INTEGER),
-    level: Math.floor(num(p.level, def.level, 1, PROGRESSION.maxLevel)),
+    level,
     day: Math.floor(num(p.day, def.day, 1, Number.MAX_SAFE_INTEGER)),
     reputation: computeReputation(reviews),
     stock,
@@ -117,6 +141,7 @@ function sanitizeCore(raw: unknown): PlayerCore {
     debtDays: Math.floor(num(p.debtDays, 0, 0, ECONOMY.bankruptcyDays)),
     todayPurchases: Math.floor(num(p.todayPurchases, 0, 0, Number.MAX_SAFE_INTEGER)),
     bankrupt: p.bankrupt === true,
+    dayBoost: num(p.dayBoost, 1, 1, 2),
   }
 }
 

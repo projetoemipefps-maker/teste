@@ -1,4 +1,4 @@
-import { PRICING, REPUTATION, REVIEW_NAMES, REVIEW_TEXTS, type ReviewTheme } from '../config'
+import { PRICING, REPUTATION, REVIEW_NAMES, REVIEW_TEXTS, type CustomerTypeId, type ReviewTheme } from '../config'
 import type { Review, ServiceNote } from './types'
 
 /** Mistura simples e determinística de dois inteiros (para escolher textos sem sortear). */
@@ -15,16 +15,27 @@ const NEGATIVE_ORDER: readonly [ServiceNote, ReviewTheme][] = [
   ['burgerMissing', 'wrong'],
   ['burgerWrong', 'wrong'],
   ['pattyRaw', 'raw'],
-  ['friesMissing', 'friesMissing'],
+  ['sideMissing', 'sideMissing'],
+  ['dessertMissing', 'dessertMissing'],
   ['drinkMissing', 'drinkMissing'],
   ['slow', 'slow'],
+  ['sideWrong', 'wrong'],
+  ['dessertWrong', 'wrong'],
+  ['drinkWrongKind', 'wrong'],
   ['pattyOverdone', 'dry'],
   ['drinkSpilled', 'drinkSpilled'],
   ['drinkLow', 'drinkLow'],
-  ['friesStale', 'friesStale'],
+  ['sideStale', 'sideStale'],
 ]
 
-export function reviewTheme(stars: number, notes: readonly ServiceNote[], priceRatio: number): ReviewTheme {
+export function reviewTheme(
+  stars: number,
+  notes: readonly ServiceNote[],
+  priceRatio: number,
+  type: CustomerTypeId = 'normal',
+): ReviewTheme {
+  if (type === 'critic') return stars >= 5 ? 'critic' : 'criticBad'
+  if (type === 'influencer' && stars >= 4) return 'influencer'
   if (stars >= 4) {
     if (stars === 5 && notes.includes('pattyPerfect')) return 'greatPatty'
     if (notes.includes('fast')) return 'fast'
@@ -39,19 +50,24 @@ export function reviewTheme(stars: number, notes: readonly ServiceNote[], priceR
 interface Input {
   customerId: number
   day: number
+  /** Nota que o cliente publica (o crítico é mais duro que o atendimento). */
   stars: number
   notes: readonly ServiceNote[]
   priceRatio: number
+  type?: CustomerTypeId
+  weight?: number
 }
 
-export function makeReview({ customerId, day, stars, notes, priceRatio }: Input): Review {
+export function makeReview({ customerId, day, stars, notes, priceRatio, type = 'normal', weight = 1 }: Input): Review {
   const seed = hashSeed(customerId, day)
   return {
     id: `${day}-${customerId}`,
     day,
     stars,
-    text: pick(REVIEW_TEXTS[reviewTheme(stars, notes, priceRatio)], seed),
+    text: pick(REVIEW_TEXTS[reviewTheme(stars, notes, priceRatio, type)], seed),
     name: pick(REVIEW_NAMES, hashSeed(seed, 7)),
+    ...(weight !== 1 && { weight }),
+    ...(type !== 'normal' && { type }),
   }
 }
 

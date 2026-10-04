@@ -1,14 +1,28 @@
 import { motion } from 'framer-motion'
-import { INGREDIENTS, INGREDIENT_STOCK, UI_LIMITS, type IngredientId } from '@/game/config'
+import { INGREDIENTS, UI_LIMITS, type IngredientId } from '@/game/config'
 import { canAddToBurger } from '@/game/engine'
 import { IngredientArt } from '@/art'
 import { useGameStore } from '@/game/store'
 
+/** Nome curto para caber no botão. */
+const SHORT: Partial<Record<IngredientId, string>> = {
+  bunBottom: 'Pão',
+  bunTop: 'Pão de cima',
+  briocheBottom: 'Brioche',
+  briocheTop: 'Pão de cima',
+  australianBottom: 'Pão austral.',
+  australianTop: 'Pão de cima',
+  creamyCheddar: 'Cheddar cremoso',
+  caramelizedOnion: 'Cebola caram.',
+  greenMayo: 'Maionese verde',
+}
+
 export function IngredientTray({ id }: { id: IngredientId }) {
   const allowed = useGameStore((s) => canAddToBurger(s.session, id))
   const add = useGameStore((s) => s.addIngredient)
-  const stockId = INGREDIENT_STOCK[id]
+  const stockId = INGREDIENTS[id].stock
   const count = useGameStore((s) => (stockId ? s.session.stock[stockId] : null))
+  const label = SHORT[id] ?? INGREDIENTS[id].name
 
   return (
     <motion.button
@@ -25,7 +39,7 @@ export function IngredientTray({ id }: { id: IngredientId }) {
     >
       <span className="pointer-events-none absolute inset-x-2.5 top-1 h-1 rounded-full bg-white/70" />
       <IngredientArt id={id} className="w-[48px] overflow-visible drop-shadow-[0_2px_0_rgba(59,31,14,.3)]" />
-      <span className="mt-1 font-display text-[11px] leading-none text-ink">{INGREDIENTS[id].name}</span>
+      <span className="mt-1 text-center font-display text-[10.5px] leading-[1.05] text-ink">{label}</span>
       {count !== null && (
         <span
           className={`absolute -right-1.5 -top-2 rounded-full border-2 border-ink px-1.5 py-px font-display text-[10px] leading-tight ${

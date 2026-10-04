@@ -14,12 +14,13 @@ interface Props {
   /** Mostra a bolinha marcadora na posição atual. */
   marker?: boolean
   className?: string
+  style?: React.CSSProperties
 }
 
 const TRACK = 'rgba(59,31,14,.28)'
 
 /** Anel circular de cozimento: faixas coloridas (no ponto, passando, queimando) que acendem conforme o tempo passa. */
-export function CookRing({ value, total, zones, size, stroke, marker = true, className }: Props) {
+export function CookRing({ value, total, zones, size, stroke, marker = true, className, style }: Props) {
   const r = (size - stroke) / 2
   const c = size / 2
   const pct = (v: number) => Math.min(100, Math.max(0, (v / total) * 100))
@@ -47,7 +48,7 @@ export function CookRing({ value, total, zones, size, stroke, marker = true, cla
   }
   const angle = (pct(value) / 100) * 2 * Math.PI - Math.PI / 2
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={className} aria-hidden>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={className} style={style} aria-hidden>
       <circle cx={c} cy={c} r={r + stroke / 2 + 1} fill="none" stroke="#3B1F0E" strokeWidth={2} opacity={0.55} />
       <circle cx={c} cy={c} r={r - stroke / 2 - 1} fill="none" stroke="#3B1F0E" strokeWidth={2} opacity={0.55} />
       <circle cx={c} cy={c} r={r} fill="none" stroke={TRACK} strokeWidth={stroke} />

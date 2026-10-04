@@ -32,6 +32,11 @@ export function EffectsLayer() {
   useEffect(
     () =>
       onGameEvent((e) => {
+        if (e.type === 'customerChangedMind') {
+          const from = center(`[data-slot="${e.slot}"]`)
+          if (from) setFx((list) => [...list, { id: ++seq, kind: 'text', x: from.x, y: from.y - 40, dx: 0, dy: -40, delay: 0, text: 'Mudei de ideia!', tone: 'bad' }])
+          return
+        }
         if (e.type === 'customerServed' || e.type === 'customerLost') {
           const from = center(`[data-slot="${e.slot}"]`)
           if (!from) return
@@ -56,12 +61,6 @@ export function EffectsLayer() {
             added.push({ id: ++seq, kind: 'text', ...start, dx: 0, dy: -50, delay: 0, text: 'Foi embora!', tone: 'bad' })
           }
           setFx((list) => [...list, ...added])
-        }
-        if (e.type === 'leveledUp') {
-          setFx((list) => [
-            ...list,
-            { id: ++seq, kind: 'text', x: window.innerWidth / 2, y: window.innerHeight * 0.3, dx: 0, dy: -60, delay: 0.3, text: `Nível ${e.level}!`, tone: 'good' },
-          ])
         }
       }),
     [],

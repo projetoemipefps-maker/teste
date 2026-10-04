@@ -1,38 +1,46 @@
 import { motion } from 'framer-motion'
 import type { ComponentType, SVGProps } from 'react'
-import { TabBurgerIcon, TabCupIcon, TabFriesIcon, TabGrillIcon } from '@/art'
-import { fryerAlert, grillAlert, type StationAlert } from '@/game/engine'
+import { TabBurgerIcon, TabCupIcon, TabDessertIcon, TabFriesIcon, TabGrillIcon } from '@/art'
+import { cookerAlert, grillAlert, type StationAlert } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 
-export type Station = 'assembly' | 'grill' | 'fryer' | 'drinks'
+export type Station = 'assembly' | 'grill' | 'fryer' | 'drinks' | 'desserts'
 
 const TABS: { id: Station; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { id: 'assembly', label: 'Montagem', Icon: TabBurgerIcon },
   { id: 'grill', label: 'Chapa', Icon: TabGrillIcon },
   { id: 'fryer', label: 'Fritadeira', Icon: TabFriesIcon },
   { id: 'drinks', label: 'Bebidas', Icon: TabCupIcon },
+  { id: 'desserts', label: 'Doces', Icon: TabDessertIcon },
 ]
 
 function AlertDot({ alert }: { alert: StationAlert }) {
   if (alert === 'none') return null
   return (
     <span
-      className={`fx-pulse absolute right-1.5 top-1 h-3.5 w-3.5 rounded-full border-[3px] border-ink ${alert === 'warn' ? 'bg-tomato' : 'bg-leaf'}`}
+      className={`fx-pulse absolute right-1 top-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-ink ${alert === 'warn' ? 'bg-tomato' : 'bg-leaf'}`}
       aria-label={alert === 'warn' ? 'Precisa de atenção' : 'Pronto'}
     />
   )
 }
 
 export function StationTabs({ active, onChange }: { active: Station; onChange: (s: Station) => void }) {
+  const hasOven = useGameStore((s) => s.session.oven.length > 0)
   const alerts: Record<Station, StationAlert> = {
     assembly: 'none',
     grill: useGameStore((s) => grillAlert(s.session)),
-    fryer: useGameStore((s) => fryerAlert(s.session)),
+    fryer: useGameStore((s) => cookerAlert(s.session, 'fryer')),
     drinks: 'none',
+    desserts: useGameStore((s) => cookerAlert(s.session, 'oven')),
   }
+  const tabs = TABS.filter((t) => t.id !== 'desserts' || hasOven)
   return (
-    <nav className="relative z-30 grid grid-cols-4 gap-1.5 border-t-4 border-ink bg-toast-dark px-2 pb-2 pt-2" aria-label="Estações da cozinha">
-      {TABS.map(({ id, label, Icon }) => {
+    <nav
+      className="relative z-30 grid gap-1.5 border-t-4 border-ink bg-toast-dark px-2 pb-2 pt-2"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      aria-label="Estações da cozinha"
+    >
+      {tabs.map(({ id, label, Icon }) => {
         const on = active === id
         return (
           <motion.button
@@ -48,7 +56,7 @@ export function StationTabs({ active, onChange }: { active: Station; onChange: (
             transition={{ type: 'spring', stiffness: 600, damping: 30 }}
           >
             <Icon className="h-6 w-6" />
-            <span className="font-display text-[11px] leading-none text-ink">{label}</span>
+            <span className={`font-display leading-none text-ink ${tabs.length > 4 ? "text-[10px] tracking-tight" : "text-[10.5px]"}`}>{label}</span>
             <AlertDot alert={alerts[id]} />
           </motion.button>
         )

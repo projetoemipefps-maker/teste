@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Star } from '@/art'
-import { UI_TIMING } from '@/game/config'
+import { CUSTOMER_TYPES, UI_TIMING } from '@/game/config'
 import type { GameEvent, ServiceNote } from '@/game/engine'
 import { onGameEvent } from '@/game/loop/eventBus'
 
@@ -13,12 +13,16 @@ const NOTE_TEXT: Record<ServiceNote, { text: string; good: boolean }> = {
   pattyRaw: { text: 'Carne crua', good: false },
   pattyOverdone: { text: 'Carne passada', good: false },
   pattyPerfect: { text: 'Carne no ponto!', good: true },
-  friesMissing: { text: 'Faltou a batata', good: false },
-  friesStale: { text: 'Batata murcha', good: false },
+  sideMissing: { text: 'Faltou o acompanhamento', good: false },
+  sideWrong: { text: 'Acompanhamento errado', good: false },
+  sideStale: { text: 'Acompanhamento murcho', good: false },
   drinkMissing: { text: 'Faltou a bebida', good: false },
+  drinkWrongKind: { text: 'Bebida errada', good: false },
   drinkWrongSize: { text: 'Copo de outro tamanho', good: false },
-  drinkLow: { text: 'Refri pela metade', good: false },
-  drinkSpilled: { text: 'Refri derramou', good: false },
+  drinkLow: { text: 'Copo pela metade', good: false },
+  drinkSpilled: { text: 'Bebida derramou', good: false },
+  dessertMissing: { text: 'Faltou a sobremesa', good: false },
+  dessertWrong: { text: 'Sobremesa errada', good: false },
   fast: { text: 'Atendimento rápido!', good: true },
   slow: { text: 'Demorou demais', good: false },
 }
@@ -68,6 +72,9 @@ export function ScorePopup() {
             transition={{ type: 'spring', stiffness: 320, damping: 16 }}
           >
             <p className="text-center font-display text-lg leading-none text-ink">{HEADLINE[served.stars - 1]}</p>
+            {served.customerType !== 'normal' && (
+              <p className="text-center text-[11px] leading-tight text-ink/60">{CUSTOMER_TYPES[served.customerType].name}</p>
+            )}
             <div className="mt-1 flex justify-center">
               {Array.from({ length: 5 }, (_, i) => (
                 <motion.div
@@ -88,7 +95,7 @@ export function ScorePopup() {
               <Row label="Total" value={served.total} strong />
             </div>
             <p className="mt-1.5 text-center text-[13px] leading-snug text-ink">
-              <b>{served.review.name}:</b> “{served.review.text}”
+              <b>{served.review.name}:</b> “{served.review.text}”{served.review.stars !== served.stars ? ` (${served.review.stars}★)` : ''}
             </p>
             <div className="mt-1.5 flex flex-wrap justify-center gap-1">
               {served.notes.slice(0, 5).map((n, i) => (

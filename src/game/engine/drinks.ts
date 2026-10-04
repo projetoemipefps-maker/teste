@@ -1,4 +1,4 @@
-import { DRINKS, type CupSize } from '../config'
+import { DRINKS, DRINK_CONFIG, TRAY, type CupSize, type DrinkKind } from '../config'
 import { hasStock, refundStock, useStock } from './stock'
 import type { ActionResult, Cup, DrinkQuality, SessionState } from './types'
 
@@ -18,29 +18,39 @@ export function cupQuality(cup: Cup): DrinkQuality {
   return 'good'
 }
 
-export const sodaUnits = (size: CupSize): number => DRINKS.cups[size].sodaUnits
+export const drinkUnits = (size: CupSize): number => DRINKS.cups[size].units
 
 /** Estoque depois de devolver o copo atual, se ainda estiver vazio (nada foi servido). */
 function stockAfterRefund(session: SessionState) {
   const { cup } = session
-  return cup && cup.fill === 0 ? refundStock(session.stock, 'soda', sodaUnits(cup.size)) : session.stock
+  return cup && cup.fill === 0
+    ? refundStock(session.stock, DRINK_CONFIG[cup.kind].stock, drinkUnits(cup.size))
+    : session.stock
 }
 
-/** Dá para pôr um copo deste tamanho (há refrigerante, contando o que volta se o copo atual estiver vazio)? */
-export function canChooseCup(session: SessionState, size: CupSize): boolean {
-  return !session.ended && hasStock(stockAfterRefund(session), 'soda', sodaUnits(size))
+/** Dá para pôr um copo deste tipo e tamanho (liberado, com estoque — contando o que volta se o copo atual estiver vazio)? */
+export function canChooseCup(session: SessionState, kind: DrinkKind, size: CupSize): boolean {
+  const cfg = DRINK_CONFIG[kind]
+  return !session.ended && cfg.unlockLevel <= session.level && hasStock(stockAfterRefund(session), cfg.stock, drinkUnits(size))
 }
 
 /**
- * Escolhe um copo vazio e o coloca sob a máquina, gastando refrigerante do estoque.
- * Trocar um copo ainda vazio devolve o refrigerante dele; trocar um copo já servido desperdiça.
+ * Escolhe um copo vazio e o coloca sob a máquina, gastando a bebida do estoque.
+ * Trocar um copo ainda vazio devolve o que ele gastou; trocar um copo já servido desperdiça.
  */
-export function chooseCup(session: SessionState, size: CupSize): ActionResult {
-  if (session.ended || (session.cup?.size === size && session.cup.fill === 0)) return { session, events: [] }
+export function chooseCup(session: SessionState, kind: DrinkKind, size: CupSize): ActionResult {
+  if (session.cup && session.cup.kind === kind && session.cup.size === size && session.cup.fill === 0) {
+    return { session, events: [] }
+  }
+  if (!canChooseCup(session, kind, size)) return { session, events: [] }
   const available = stockAfterRefund(session)
-  if (!hasStock(available, 'soda', sodaUnits(size))) return { session, events: [] }
   return {
-    session: { ...session, cup: { size, fill: 0 }, pouring: false, stock: useStock(available, 'soda', sodaUnits(size)) },
+    session: {
+      ...session,
+      cup: { kind, size, fill: 0 },
+      pouring: false,
+      stock: useStock(available, DRINK_CONFIG[kind].stock, drinkUnits(size)),
+    },
     events: [],
   }
 }
@@ -53,21 +63,21 @@ export function setPouring(session: SessionState, pouring: boolean): SessionStat
 /** Enche o copo enquanto o botão está pressionado. Devolve true no instante em que começa a derramar. */
 export function pourCup(cup: Cup, dt: number): { cup: Cup; startedSpilling: boolean } {
   const capacity = cupCapacity(cup.size)
-  const fill = Math.min(cup.fill + DRINKS.fillRate * dt, capacity * DRINKS.overflowCapRatio)
+  const fill = Math.min(cup.fill + DRINK_CONFIG[cup.kind].fillRate * dt, capacity * DRINKS.overflowCapRatio)
   return { cup: { ...cup, fill }, startedSpilling: cup.fill <= capacity && fill > capacity }
 }
 
 export function cupToTray(session: SessionState): ActionResult {
   const { cup } = session
-  if (session.ended || !cup || cup.fill <= 0 || session.tray.drink) return { session, events: [] }
+  if (session.ended || !cup || cup.fill <= 0 || session.tray.drinks.length >= TRAY.drinks) return { session, events: [] }
   return {
     session: {
       ...session,
       cup: null,
       pouring: false,
-      tray: { ...session.tray, drink: { size: cup.size, quality: cupQuality(cup) } },
+      tray: { ...session.tray, drinks: [...session.tray.drinks, { kind: cup.kind, size: cup.size, quality: cupQuality(cup) }] },
     },
-    events: [{ type: 'trayPlaced', item: 'drink' }],
+    events: [{ type: 'trayPlaced', category: 'drinks' }],
   }
 }
 

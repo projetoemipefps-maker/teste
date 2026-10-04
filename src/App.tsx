@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { BankruptScreen } from './screens/BankruptScreen'
 import { KitchenScreen } from './screens/KitchenScreen'
 import { PrepScreen } from './screens/PrepScreen'
+import { RecipeBookScreen } from './screens/RecipeBookScreen'
 import { SummaryScreen } from './screens/SummaryScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { TitleScreen } from './screens/TitleScreen'
@@ -33,6 +34,7 @@ export function App() {
           {screen === 'kitchen' && <KitchenScreen />}
           {screen === 'summary' && <SummaryScreen />}
           {screen === 'bankrupt' && <BankruptScreen />}
+          {screen === 'recipes' && <RecipeBookScreen />}
           {screen === 'settings' && <SettingsScreen />}
         </motion.main>
       </AnimatePresence>

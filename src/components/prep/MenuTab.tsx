@@ -85,7 +85,14 @@ function Row({ item, price, onChange }: { item: MenuItem; price: number; onChang
 
 /** Cardápio: o jogador ajusta o preço de cada item dentro dos limites. */
 export function MenuTab({ player, setPrice }: { player: PlayerState; setPrice: (key: string, value: number) => void }) {
-  const ratio = menuPriceRatio(player.prices)
+  const ratio = menuPriceRatio(player.prices, player.level)
+  const groups: { kind: MenuItem['kind']; title: string }[] = [
+    { kind: 'burger', title: 'Lanches' },
+    { kind: 'side', title: 'Acompanhamentos' },
+    { kind: 'drink', title: 'Bebidas' },
+    { kind: 'dessert', title: 'Sobremesas' },
+  ]
+  const items = menuItems().filter((i) => i.unlockLevel <= player.level)
   return (
     <div className="flex flex-col gap-2">
       <div className="rounded-2xl border-4 border-ink bg-cream-dark/60 p-2">
@@ -93,14 +100,23 @@ export function MenuTab({ player, setPrice }: { player: PlayerState; setPrice: (
           Preço alto rende mais por pedido, mas deixa os clientes menos pacientes e reduz a gorjeta. Preço baixo atrai mais clientes.
         </p>
         <div className="flex gap-2">
-          <Effect label="Movimento" factor={demandFactorFromPrices(player.prices)} />
+          <Effect label="Movimento" factor={demandFactorFromPrices(player.prices, player.level)} />
           <Effect label="Paciência" factor={patienceFactorFromPrice(ratio)} />
           <Effect label="Gorjeta" factor={tipFactorFromPrice(ratio)} />
         </div>
       </div>
-      {menuItems().map((item) => (
-        <Row key={item.key} item={item} price={itemPrice(player.prices, item.key)} onChange={(v) => setPrice(item.key, v)} />
-      ))}
+      {groups.map((g) => {
+        const rows = items.filter((i) => i.kind === g.kind)
+        if (rows.length === 0) return null
+        return (
+          <section key={g.kind} className="flex flex-col gap-2" aria-label={g.title}>
+            <h3 className="px-1 pt-1 font-display text-lg leading-none text-tomato [text-shadow:0_1px_0_#3B1F0E]">{g.title}</h3>
+            {rows.map((item) => (
+              <Row key={item.key} item={item} price={itemPrice(player.prices, item.key)} onChange={(v) => setPrice(item.key, v)} />
+            ))}
+          </section>
+        )
+      })}
     </div>
   )
 }

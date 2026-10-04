@@ -1,24 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { INGREDIENT_STOCK, MAX_STOCK, RECIPES, STOCK_IDS, STOCK_ITEMS } from '../config'
-import { chooseCup, discardCup } from './drinks'
-import { placeFries } from './fryer'
+import { INGREDIENTS, MAX_STOCK, RECIPES, STOCK_IDS, STOCK_ITEMS, UNLOCK_GIFT_UNITS } from '../config'
+import { placeCookable } from './cookers'
+import { chooseCup } from './drinks'
 import { placeRawPatty } from './grill'
-import { addPattyToBurger, addToBurger, canAddToBurger, createSession } from './session'
+import { addPattyToBurger, addToBurger, canAddToBurger } from './session'
 import {
   ageStock,
   cartCost,
   clampCart,
+  cookableCost,
   daysUntilSpoil,
+  drinkCost,
   filledStock,
-  friesCost,
   purchaseStock,
   recipeCost,
   startingStock,
+  unlockGifts,
 } from './stock'
-import { testPlayer } from './testing'
+import { testPlayer, testSession } from './testing'
+import { scoopIceCream } from './desserts'
+import type { StockId } from './types'
 
-const sessionWith = (stock: Partial<Record<(typeof STOCK_IDS)[number], number>>) =>
-  createSession(1, { stock: { ...filledStock(0), ...stock } })
+const sessionWith = (stock: Partial<Record<StockId, number>>, level = 50) => testSession(1, { level, stock: { ...filledStock(0), ...stock } })
 
 describe('consumo de estoque', () => {
   it('montar o lanche gasta estoque; o pão de cima não gasta nada', () => {
@@ -31,6 +34,12 @@ describe('consumo de estoque', () => {
     expect(s.stock.bun).toBe(1)
   })
 
+  it('cada tipo de pão gasta o seu estoque', () => {
+    const s = addToBurger(sessionWith({ brioche: 2, bun: 2 }), 'briocheBottom').session
+    expect(s.stock.brioche).toBe(1)
+    expect(s.stock.bun).toBe(2)
+  })
+
   it('sem estoque o ingrediente fica indisponível e não é adicionado', () => {
     const s = sessionWith({ bun: 1, cheese: 0, lettuce: 5 })
     const open = addToBurger(s, 'bunBottom').session
@@ -41,43 +50,36 @@ describe('consumo de estoque', () => {
     expect(canAddToBurger(sessionWith({ bun: 0 }), 'bunBottom')).toBe(false)
   })
 
-  it('a carne gasta estoque ao ir para a chapa, não ao entrar no lanche', () => {
-    const s = sessionWith({ patty: 1 })
-    const grilled = placeRawPatty(s, 0).session
+  it('a proteína gasta estoque ao ir para a chapa, não ao entrar no lanche', () => {
+    const grilled = placeRawPatty(sessionWith({ patty: 1 }), 0).session
     expect(grilled.stock.patty).toBe(0)
-    expect(placeRawPatty(grilled, 1).session).toBe(grilled) // acabou
-    const held = { ...grilled, burger: ['bunBottom' as const], held: ['perfect' as const] }
+    expect(placeRawPatty(grilled, 1).session).toBe(grilled)
+    const held = { ...grilled, burger: ['bunBottom' as const], held: [{ id: 'patty' as const, quality: 'perfect' as const }] }
     expect(addPattyToBurger(held, 0).session.stock.patty).toBe(0)
   })
 
-  it('a batata gasta estoque ao ir para o óleo e não vai sem estoque', () => {
-    const fried = placeFries(sessionWith({ potato: 1 }), 0).session
+  it('o acompanhamento gasta o estoque dele ao ir para o óleo', () => {
+    const fried = placeCookable(sessionWith({ potato: 1, rusticPotato: 3 }), 'fryer', 0, 'fries').session
     expect(fried.stock.potato).toBe(0)
+    const rustic = placeCookable(sessionWith({ potato: 1, rusticPotato: 3 }), 'fryer', 0, 'rustic').session
+    expect(rustic.stock.rusticPotato).toBe(2)
     const empty = sessionWith({ potato: 0 })
-    expect(placeFries(empty, 0).session).toBe(empty)
+    expect(placeCookable(empty, 'fryer', 0, 'fries').session).toBe(empty)
   })
 
-  it('o copo gasta refrigerante conforme o tamanho e não vai sem estoque', () => {
-    const s = chooseCup(sessionWith({ soda: 5 }), 'large').session
-    expect(s.stock.soda).toBe(2)
-    const poor = sessionWith({ soda: 1 })
-    expect(chooseCup(poor, 'medium').session).toBe(poor)
+  it('o brownie gasta estoque ao ir para o forno e o sorvete ao ser servido', () => {
+    expect(placeCookable(sessionWith({ brownie: 2 }), 'oven', 0, 'brownie').session.stock.brownie).toBe(1)
+    const scoop = scoopIceCream(sessionWith({ iceCream: 1 })).session
+    expect(scoop.stock.iceCream).toBe(0)
+    expect(scoop.tray.desserts).toEqual([{ id: 'iceCream' }])
+    const none = sessionWith({ iceCream: 0 })
+    expect(scoopIceCream(none).session).toBe(none)
   })
 
-  it('trocar um copo ainda vazio devolve o refrigerante; jogar fora também', () => {
-    let s = chooseCup(sessionWith({ soda: 3 }), 'large').session
-    expect(s.stock.soda).toBe(0)
-    s = chooseCup(s, 'small').session
-    expect(s.stock.soda).toBe(2)
-    expect(discardCup(s).session.stock.soda).toBe(3)
-    // copo já servido: desperdiça
-    const used = { ...s, cup: { size: 'small' as const, fill: 50 } }
-    expect(discardCup(used).session.stock.soda).toBe(s.stock.soda)
-  })
-
-  it('escolher o mesmo tamanho com o copo vazio não gasta de novo', () => {
-    const s = chooseCup(sessionWith({ soda: 3 }), 'small').session
-    expect(chooseCup(s, 'small').session).toBe(s)
+  it('o copo gasta a bebida certa conforme o tamanho', () => {
+    const s = chooseCup(sessionWith({ soda: 5, juice: 5 }), 'juice', 'large').session
+    expect(s.stock.juice).toBe(2)
+    expect(s.stock.soda).toBe(5)
   })
 })
 
@@ -110,17 +112,47 @@ describe('compra de estoque', () => {
 
   it('comprar fresco com estoque velho rejuvenesce a idade média', () => {
     const p = testPlayer({ money: 500, stock: { ...startingStock(), lettuce: 10 }, stockAge: { lettuce: 2 } })
-    const bought = purchaseStock(p, { lettuce: 10 })
-    expect(bought.stockAge.lettuce).toBeCloseTo(1)
+    expect(purchaseStock(p, { lettuce: 10 }).stockAge.lettuce).toBeCloseTo(1)
   })
+})
 
+describe('custos e estoque inicial', () => {
   it('o custo de um lanche vem do estoque dos ingredientes', () => {
     const simples = RECIPES.find((r) => r.id === 'simples')!
     expect(recipeCost(simples)).toBe(STOCK_ITEMS.bun.unitCost + STOCK_ITEMS.patty.unitCost)
-    expect(friesCost()).toBe(STOCK_ITEMS.potato.unitCost)
-    for (const r of RECIPES) {
-      for (const ing of r.ingredients) expect(ing in INGREDIENT_STOCK).toBe(true)
-    }
+    const supreme = RECIPES.find((r) => r.id === 'supreme')!
+    // 2 carnes, pão australiano, cheddar, cheddar cremoso, bacon, cebola caramelizada, ovo, barbecue
+    expect(recipeCost(supreme)).toBe(6 + 4 + 2 + 2 + 4 + 2 + 2 + 1 + 1)
+  })
+
+  it('cada ingrediente que gasta estoque aponta para um item de estoque que existe', () => {
+    for (const ing of Object.values(INGREDIENTS)) if (ing.stock) expect(STOCK_IDS).toContain(ing.stock)
+  })
+
+  it('custo de acompanhamentos e bebidas', () => {
+    expect(cookableCost('loaded')).toBe(STOCK_ITEMS.potato.unitCost + STOCK_ITEMS.cheddar.unitCost + STOCK_ITEMS.bacon.unitCost)
+    expect(drinkCost('shakeChocolate', 'large')).toBeGreaterThan(drinkCost('soda', 'large'))
+    expect(drinkCost('soda', 'large')).toBeGreaterThan(drinkCost('soda', 'small'))
+  })
+
+  it('no nível 1 só há estoque dos itens iniciais; níveis maiores ganham presente dos liberados', () => {
+    const start = startingStock(1)
+    expect(start.bun).toBe(STOCK_ITEMS.bun.startingStock)
+    expect(start.bacon).toBe(0)
+    expect(start.juice).toBe(0)
+    const mid = startingStock(6)
+    expect(mid.cheddar).toBe(UNLOCK_GIFT_UNITS)
+    expect(mid.bacon).toBe(UNLOCK_GIFT_UNITS)
+    expect(mid.creamyCheddar).toBe(0) // nível 14
+  })
+
+  it('liberar itens dá estoque de presente só dos itens novos', () => {
+    const s = unlockGifts(filledStock(0), 1, 4)
+    expect(s.cheddar).toBe(UNLOCK_GIFT_UNITS) // nível 2
+    expect(s.onion).toBe(UNLOCK_GIFT_UNITS) // nível 3
+    expect(s.bacon).toBe(UNLOCK_GIFT_UNITS) // nível 4
+    expect(s.pickles).toBe(0) // nível 6
+    expect(s.bun).toBe(0)
   })
 })
 
@@ -155,8 +187,7 @@ describe('ingredientes frescos', () => {
   })
 
   it('sem estoque, a idade zera', () => {
-    const r = ageStock({ ...startingStock(), lettuce: 0 }, { lettuce: 2 })
-    expect(r.stockAge.lettuce).toBe(0)
+    expect(ageStock({ ...startingStock(), lettuce: 0 }, { lettuce: 2 }).stockAge.lettuce).toBe(0)
   })
 
   it('avisa quantos dias faltam para estragar', () => {

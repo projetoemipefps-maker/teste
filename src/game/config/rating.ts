@@ -7,12 +7,16 @@ export const RATING = {
     burgerWrong: 3,
     pattyRaw: 1.5,
     pattyOverdone: 0.75,
-    friesMissing: 1.5,
-    friesStale: 0.5,
+    sideMissing: 1.5,
+    sideWrong: 1,
+    sideStale: 0.5,
     drinkMissing: 1.5,
+    drinkWrongKind: 1.25,
     drinkWrongSize: 1,
     drinkLow: 1,
     drinkSpilled: 0.75,
+    dessertMissing: 1.5,
+    dessertWrong: 1,
   },
   /** Penalidade pela espera: vale a primeira faixa cuja paciência restante (0–1) for >= minRatio. */
   wait: [

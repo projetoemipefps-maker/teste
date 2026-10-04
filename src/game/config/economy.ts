@@ -1,8 +1,6 @@
 export const ECONOMY = {
   /** Fração do preço paga por um item errado (lanche de outra receita, copo de outro tamanho). */
   wrongPayFraction: 0.3,
-  /** Preço de venda padrão da porção de batata (R$). */
-  friesBasePrice: 8,
   /** Gorjeta como fração do preço dos itens, por nota (índice 0 = 1 estrela). */
   tipFractionByStars: [0, 0, 0.1, 0.25, 0.4],
   /** A gorjeta vai de `tipSpeedFloor` a 100% conforme a paciência que sobrou. */

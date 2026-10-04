@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
-import { BUY_BUNDLES, MAX_STOCK, STOCK_IDS, STOCK_ITEMS, type StockId } from '@/game/config'
-import { cartCost, daysUntilSpoil, roomFor, type Cart, type PlayerState } from '@/game/engine'
+import { BUY_BUNDLES, MAX_STOCK, STOCK_CATEGORIES, STOCK_IDS, STOCK_ITEMS, type StockId } from '@/game/config'
+import { cartCost, daysUntilSpoil, isStockUnlocked, roomFor, type Cart, type PlayerState } from '@/game/engine'
 import { StockArt } from '../ItemArt'
 import { Button } from '../Button'
 
@@ -79,9 +79,18 @@ export function StockTab({ player, cart, setCart, onBuy }: Props) {
   return (
     <div className="flex min-h-full flex-col gap-2">
       <p className="px-1 text-sm text-ink/70">Cada lanche gasta ingredientes. Cabem até {MAX_STOCK} de cada item. Alface e tomate estragam se ficarem parados.</p>
-      {STOCK_IDS.map((id) => (
-        <Row key={id} id={id} player={player} cart={cart} setCart={setCart} />
-      ))}
+      {STOCK_CATEGORIES.map((category) => {
+        const ids = STOCK_IDS.filter((id) => STOCK_ITEMS[id].category === category.id && isStockUnlocked(id, player.level))
+        if (ids.length === 0) return null
+        return (
+          <section key={category.id} className="flex flex-col gap-2" aria-label={category.name}>
+            <h3 className="px-1 pt-1 font-display text-lg leading-none text-tomato [text-shadow:0_1px_0_#3B1F0E]">{category.name}</h3>
+            {ids.map((id) => (
+              <Row key={id} id={id} player={player} cart={cart} setCart={setCart} />
+            ))}
+          </section>
+        )
+      })}
       <div className="sticky bottom-0 -mx-1 mt-auto flex items-center gap-3 rounded-2xl border-4 border-ink bg-cream px-3 py-2 shadow-[0_-4px_0_rgba(59,31,14,.15)]">
         <div className="flex-1">
           <p className="text-xs leading-none text-ink/70">Custo total</p>

@@ -161,6 +161,11 @@ export function SummaryScreen() {
               Você subiu para o nível {levelNow}!
             </div>
           )}
+          {summary.nextDayBoost > 0 && (
+            <div className="rounded-2xl border-4 border-ink bg-[#FFD6E4] px-3 py-2 text-sm text-ink">
+              <b>Influenciador feliz!</b> Amanhã o movimento deve subir {Math.round(summary.nextDayBoost * 100)}%.
+            </div>
+          )}
           {summary.spoiled.length > 0 && (
             <div className="rounded-2xl border-4 border-ink bg-[#FFE0B8] px-3 py-2 text-sm text-ink">
               <b>Estragou no estoque:</b>{' '}

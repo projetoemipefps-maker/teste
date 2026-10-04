@@ -1,25 +1,29 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import type { IngredientId } from '@/game/config'
+import { INGREDIENTS, type IngredientId } from '@/game/config'
 import type { PattyQuality } from '@/game/engine'
 import { ART_HEIGHT, ART_OVERLAP, ART_WIDTH, IngredientArt } from '@/art'
 
 interface Props {
   ingredients: readonly IngredientId[]
-  /** Ponto de cada carne, na ordem em que aparecem (padrão: no ponto). */
+  /** Ponto de cada proteína, na ordem em que aparecem (padrão: no ponto). */
   patties?: readonly PattyQuality[]
   width: number
+  /** Altura máxima (px): se o lanche for mais alto que isso, o desenho encolhe junto com a largura. */
+  maxHeight?: number
   /** Ingredientes caem de cima e saem animados (usado na bancada). */
   animated?: boolean
   className?: string
 }
 
 /** Desenho do lanche: camadas empilhadas de baixo para cima, alinhadas pela base. */
-export function BurgerPicture({ ingredients, patties = [], width, animated = false, className = '' }: Props) {
+export function BurgerPicture({ ingredients, patties = [], width: wantedWidth, maxHeight, animated = false, className = '' }: Props) {
+  const naturalHeight = ingredients.reduce((sum, id) => sum + ART_HEIGHT[id] - ART_OVERLAP[id], 0) * (wantedWidth / ART_WIDTH)
+  const width = maxHeight && naturalHeight > maxHeight ? (wantedWidth * maxHeight) / naturalHeight : wantedWidth
   const scale = width / ART_WIDTH
   // Renderiza de cima para baixo (a última camada vem primeiro no DOM).
-  let pattyCount = 0
+  let proteinCount = 0
   const layers = ingredients
-    .map((id, i) => ({ id, i, quality: id === 'patty' ? (patties[pattyCount++] ?? 'perfect') : undefined }))
+    .map((id, i) => ({ id, i, quality: INGREDIENTS[id].role === 'protein' ? (patties[proteinCount++] ?? 'perfect') : undefined }))
     .reverse()
 
   const item = ({ id, i, quality }: { id: IngredientId; i: number; quality: PattyQuality | undefined }) => {

@@ -1,14 +1,16 @@
 import { PROGRESSION } from '../config'
 
-/** XP necessário para sair do nível `level` para o próximo. */
+/** XP necessário para sair do nível `level` para o próximo: tabela rápida no começo e curva depois. */
 export function xpToNext(level: number): number {
-  return Math.round(PROGRESSION.xpBase * Math.pow(PROGRESSION.xpGrowth, level - 1))
+  const early = PROGRESSION.earlyXp[level - 1]
+  if (early !== undefined) return early
+  return Math.round(PROGRESSION.xpBase * Math.pow(level, PROGRESSION.xpExponent))
 }
 
-/** XP de um atendimento: depende da nota e dos itens extras (batata/bebida) entregues. */
-export function xpForServe(stars: number, extrasDelivered: number): number {
+/** XP de um atendimento: nota, itens extras entregues e o tipo de cliente (`xpFactor`). */
+export function xpForServe(stars: number, extrasDelivered: number, xpFactor = 1): number {
   const base = PROGRESSION.xpByStars[Math.min(5, Math.max(1, stars)) - 1] ?? 0
-  return base + PROGRESSION.xpPerExtraItem * extrasDelivered
+  return Math.round((base + PROGRESSION.xpPerExtraItem * extrasDelivered) * xpFactor)
 }
 
 export interface XpResult {
@@ -34,4 +36,11 @@ export function addXp(level: number, xp: number, gain: number): XpResult {
 export function xpProgress(level: number, xp: number): number {
   if (level >= PROGRESSION.maxLevel) return 1
   return Math.min(1, xp / xpToNext(level))
+}
+
+/** XP total necessário para chegar ao nível `level` partindo do 1. */
+export function totalXpForLevel(level: number): number {
+  let sum = 0
+  for (let l = 1; l < level; l++) sum += xpToNext(l)
+  return sum
 }

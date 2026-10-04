@@ -12,18 +12,39 @@ import { TrayStrip } from '@/components/TrayStrip'
 import { AssemblyPanel } from '@/components/stations/AssemblyPanel'
 import { DrinkPanel } from '@/components/stations/DrinkPanel'
 import { FryerPanel } from '@/components/stations/FryerPanel'
+import { DessertPanel } from '@/components/stations/DessertPanel'
 import { GrillPanel } from '@/components/stations/GrillPanel'
+import { LevelUpOverlay } from '@/components/LevelUpOverlay'
+import { OrderReference } from '@/components/RecipeReference'
 import { useGameLoop } from '@/game/loop/useGameLoop'
 import { useGameStore } from '@/game/store'
+
+function ReferenceModal() {
+  const slot = useGameStore((s) => s.referenceSlot)
+  const customer = useGameStore((s) => (slot === null ? null : (s.session.slots[slot] ?? null)))
+  const close = useGameStore((s) => s.closeReference)
+  return (
+    <Modal title="Montagem do pedido" compact>
+      <div className="max-h-[62vh] overflow-y-auto pr-1">{customer ? <OrderReference customer={customer} /> : <p className="text-ink/70">O cliente já saiu.</p>}</div>
+      <Button variant="green" className="mt-4 w-full" onClick={close}>
+        Voltar ao jogo
+      </Button>
+    </Modal>
+  )
+}
 
 function PauseModal() {
   const setPaused = useGameStore((s) => s.setPaused)
   const goTo = useGameStore((s) => s.goTo)
+  const openRecipeBook = useGameStore((s) => s.openRecipeBook)
   return (
     <Modal title="Pausado">
       <div className="flex flex-col gap-4">
         <p className="text-sm leading-snug text-ink/80">Se sair para o menu, o dia recomeça do início quando você voltar.</p>
         <Button variant="green" onClick={() => setPaused(false)}>Continuar</Button>
+        <Button variant="secondary" onClick={openRecipeBook} className="!py-2 !text-lg">
+          Livro de receitas
+        </Button>
         <Button
           variant="brown"
           onClick={() => {
@@ -81,6 +102,8 @@ export function KitchenScreen() {
   const [station, setStation] = useState<Station>('assembly')
   const paused = useGameStore((s) => s.paused)
   const reviewsOpen = useGameStore((s) => s.reviewsOpen)
+  const levelUp = useGameStore((s) => s.levelUp)
+  const referenceSlot = useGameStore((s) => s.referenceSlot)
   const ended = useGameStore((s) => s.session.ended)
   const tick = useGameStore((s) => s.tick)
   const setPaused = useGameStore((s) => s.setPaused)
@@ -123,6 +146,7 @@ export function KitchenScreen() {
               {station === 'grill' && <GrillPanel />}
               {station === 'fryer' && <FryerPanel />}
               {station === 'drinks' && <DrinkPanel />}
+              {station === 'desserts' && <DessertPanel />}
             </motion.div>
           </AnimatePresence>
         </section>
@@ -131,8 +155,10 @@ export function KitchenScreen() {
       <EffectsLayer />
       <ScorePopup />
       <AnimatePresence>
-        {paused && !ended && !reviewsOpen && <PauseModal key="pause" />}
-        {reviewsOpen && <ReviewsModal key="reviews" />}
+        {paused && !ended && !reviewsOpen && !levelUp && referenceSlot === null && <PauseModal key="pause" />}
+        {reviewsOpen && !levelUp && <ReviewsModal key="reviews" />}
+        {referenceSlot !== null && !levelUp && <ReferenceModal key="reference" />}
+        {levelUp && <LevelUpOverlay key="levelup" />}
       </AnimatePresence>
     </div>
   )

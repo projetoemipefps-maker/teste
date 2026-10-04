@@ -22,7 +22,7 @@ const peakName = (hour: number) => (hour < 16 ? 'Almoço' : 'Jantar')
 export function ForecastCard({ player }: { player: PlayerState }) {
   const mult = dayMultiplier(player.day)
   const forecast = forecastOf(mult)
-  const factor = mult * demandFactorForReputation(player.reputation) * demandFactorFromPrices(player.prices)
+  const factor = mult * player.dayBoost * demandFactorForReputation(player.reputation) * demandFactorFromPrices(player.prices, player.level)
   const hours = SHIFT.closeHour - SHIFT.openHour
   const peak = Math.max(...DEMAND.hourly)
 
@@ -32,14 +32,19 @@ export function ForecastCard({ player }: { player: PlayerState }) {
         <div>
           <p className="font-display text-lg leading-none text-ink">Previsão do dia</p>
           <p className="mt-1 text-sm text-ink/70">
-            ≈ <b className="text-ink">{expectedCustomers(player)}</b> clientes · {SHIFT.openHour}h às {SHIFT.closeHour}h
+            ≈ <b className="text-ink">{expectedCustomers(player)}</b> clientes · {SHIFT.openHour}h–{SHIFT.closeHour}h
           </p>
         </div>
-        <span className={`rounded-full border-[3px] border-ink px-2.5 py-1 font-display text-sm leading-none ${LABEL[forecast].cls}`}>
+        <span className={`shrink-0 whitespace-nowrap rounded-full border-[3px] border-ink px-2.5 py-1 font-display text-sm leading-none ${LABEL[forecast].cls}`}>
           {LABEL[forecast].text}
         </span>
       </div>
 
+      {player.dayBoost > 1 && (
+        <p className="mt-1.5 rounded-lg bg-[#FFD6E4] px-2 py-1 text-xs leading-tight text-ink">
+          Um influenciador falou bem de você: <b>+{Math.round((player.dayBoost - 1) * 100)}%</b> de movimento hoje!
+        </p>
+      )}
       <div className="mt-1.5 flex h-[52px] items-end gap-[3px]" role="img" aria-label="Movimento por hora">
         {DEMAND.hourly.map((m, i) => {
           const isPeak = m >= DEMAND.peakThreshold

@@ -1,12 +1,20 @@
 import { REPUTATION } from '../config'
 import type { PlayerState, Review } from './types'
 
-/** Média das avaliações recentes (com um peso de "nota neutra" enquanto há poucas), de 0 a 5. */
+/**
+ * Média ponderada das avaliações recentes (o crítico pesa mais), com um peso de "nota neutra" enquanto há poucas.
+ * De 0 a 5.
+ */
 export function computeReputation(reviews: readonly Review[]): number {
   const recent = reviews.slice(0, REPUTATION.window)
-  const sum = recent.reduce((s, r) => s + r.stars, 0)
-  const value = (sum + REPUTATION.priorStars * REPUTATION.priorWeight) / (recent.length + REPUTATION.priorWeight)
-  return Math.min(REPUTATION.maxStars, Math.max(0, value))
+  let weighted = REPUTATION.priorStars * REPUTATION.priorWeight
+  let total = REPUTATION.priorWeight
+  for (const r of recent) {
+    const w = r.weight ?? 1
+    weighted += r.stars * w
+    total += w
+  }
+  return Math.min(REPUTATION.maxStars, Math.max(0, weighted / total))
 }
 
 /** Reputação maior traz mais clientes. */

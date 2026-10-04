@@ -1,37 +1,67 @@
 import {
-  FRIES_STOCK_UNITS,
-  INGREDIENT_STOCK,
+  COOKABLES,
+  DESSERTS,
+  DRINKS,
+  DRINK_CONFIG,
+  INGREDIENTS,
   MAX_STOCK,
   STOCK_IDS,
   STOCK_ITEMS,
+  UNLOCK_GIFT_UNITS,
+  type CookableId,
+  type CupSize,
+  type DessertId,
+  type DrinkKind,
   type Recipe,
   type StockId,
 } from '../config'
+import { isStockUnlocked } from './unlocks'
 import type { PlayerState, Stock, StockAges } from './types'
 
-export function startingStock(): Stock {
-  return Object.fromEntries(STOCK_IDS.map((id) => [id, STOCK_ITEMS[id].startingStock])) as Stock
+/** Estoque de quem começa no `level`: o inicial dos itens do nível 1 e um presente dos demais já liberados. */
+export function startingStock(level = 1): Stock {
+  return Object.fromEntries(
+    STOCK_IDS.map((id) => {
+      const item = STOCK_ITEMS[id]
+      if (!isStockUnlocked(id, level)) return [id, 0]
+      return [id, item.startingStock > 0 ? item.startingStock : item.unlockLevel > 1 ? UNLOCK_GIFT_UNITS : 0]
+    }),
+  ) as Stock
 }
 
 export function filledStock(amount: number): Stock {
   return Object.fromEntries(STOCK_IDS.map((id) => [id, amount])) as Stock
 }
 
+export type StockUse = Partial<Record<StockId, number>>
+
 export const hasStock = (stock: Stock, id: StockId, qty = 1): boolean => stock[id] >= qty
+export const hasStockFor = (stock: Stock, use: StockUse): boolean =>
+  (Object.entries(use) as [StockId, number][]).every(([id, qty]) => stock[id] >= qty)
 
 /** Gasta `qty` do item (devolve um estoque novo). */
 export const useStock = (stock: Stock, id: StockId, qty = 1): Stock => ({ ...stock, [id]: Math.max(0, stock[id] - qty) })
+export const useStockFor = (stock: Stock, use: StockUse): Stock => {
+  const next = { ...stock }
+  for (const [id, qty] of Object.entries(use) as [StockId, number][]) next[id] = Math.max(0, next[id] - qty)
+  return next
+}
 export const refundStock = (stock: Stock, id: StockId, qty = 1): Stock => ({ ...stock, [id]: stock[id] + qty })
+
+const unitCost = (use: StockUse): number =>
+  (Object.entries(use) as [StockId, number][]).reduce((sum, [id, qty]) => sum + qty * STOCK_ITEMS[id].unitCost, 0)
 
 /** Quanto custa de estoque fazer uma receita (R$). */
 export function recipeCost(recipe: Recipe): number {
   return recipe.ingredients.reduce((sum, ing) => {
-    const id = INGREDIENT_STOCK[ing]
+    const id = INGREDIENTS[ing].stock
     return sum + (id ? STOCK_ITEMS[id].unitCost : 0)
   }, 0)
 }
-
-export const friesCost = (): number => FRIES_STOCK_UNITS * STOCK_ITEMS.potato.unitCost
+export const cookableCost = (id: CookableId): number => unitCost(COOKABLES[id].stock)
+export const dessertCost = (id: DessertId): number => unitCost(DESSERTS[id].stock) || (id === 'brownie' ? cookableCost('brownie') : 0)
+export const drinkCost = (kind: DrinkKind, size: CupSize): number =>
+  DRINKS.cups[size].units * STOCK_ITEMS[DRINK_CONFIG[kind].stock].unitCost
 
 export type Cart = Partial<Record<StockId, number>>
 
@@ -72,6 +102,16 @@ export function purchaseStock(player: PlayerState, rawCart: Cart): PlayerState {
     stock[id] = total
   }
   return { ...player, money: player.money - cost, todayPurchases: player.todayPurchases + cost, stock, stockAge }
+}
+
+/** Presente de estoque ao liberar itens novos (de `from` exclusive até `to` inclusive). */
+export function unlockGifts(stock: Stock, from: number, to: number): Stock {
+  const next = { ...stock }
+  for (const id of STOCK_IDS) {
+    const { unlockLevel } = STOCK_ITEMS[id]
+    if (unlockLevel > from && unlockLevel <= to) next[id] += UNLOCK_GIFT_UNITS
+  }
+  return next
 }
 
 export interface SpoilReport {

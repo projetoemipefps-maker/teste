@@ -1,4 +1,4 @@
-import { FRYER, GRILL } from '@/game/config'
+import { COOKABLES, GRILL, type CookableId, type ProteinId } from '@/game/config'
 import type { PattyQuality } from '@/game/engine'
 
 type Stop = readonly [number, string]
@@ -29,28 +29,70 @@ function colorAt(stops: readonly Stop[], value: number): string {
   return lerpColor(last[1], last[1], 0)
 }
 
-/** Cor de um lado da carne: rosa (crua) → marrom (no ponto) → escuro (passada) → preto (queimada). */
-const PATTY_STOPS: readonly Stop[] = [
-  [0, '#F29AA0'],
-  [GRILL.sideDoneSeconds * 0.5, '#D07A66'],
-  [GRILL.sideDoneSeconds, '#8D4B26'],
-  [GRILL.sideOverdoneSeconds, '#55301A'],
-  [GRILL.sideBurntSeconds, '#1B1411'],
-]
-export const pattyHeatColor = (heat: number): string => colorAt(PATTY_STOPS, heat)
-
-/** Cores do hambúrguer (vista lateral) já dentro do lanche. */
-export const PATTY_QUALITY_COLORS: Record<PattyQuality, { base: string; top: string; marks: string }> = {
-  raw: { base: '#D9777F', top: '#F2A6AB', marks: '#B85962' },
-  perfect: { base: '#7B3F1C', top: '#A55E30', marks: '#4E230C' },
-  overdone: { base: '#4A2713', top: '#6B3A20', marks: '#2B140A' },
+/** Cores de cada lado, do cru ao queimado: [cru, meio, no ponto, passado, queimado]. */
+const PATTY_PALETTE: Record<ProteinId, readonly [string, string, string, string, string]> = {
+  patty: ['#F29AA0', '#D07A66', '#8D4B26', '#55301A', '#1B1411'],
+  chicken: ['#F1D2B4', '#E7BC82', '#D79A45', '#9C5D24', '#1F1612'],
+  veggie: ['#B6CF86', '#9BB567', '#7A8A45', '#4A4A28', '#1B1B12'],
 }
 
-const FRIES_STOPS: readonly Stop[] = [
-  [0, '#F5E6A8'],
-  [FRYER.readySeconds * 0.6, '#F6D56A'],
-  [FRYER.readySeconds, '#F0A826'],
-  [FRYER.burntSeconds * 0.85, '#8A5A14'],
-  [FRYER.burntSeconds, '#241812'],
-]
-export const friesHeatColor = (cook: number): string => colorAt(FRIES_STOPS, cook)
+/** Cor de um lado da proteína na chapa, conforme os segundos de cozimento. */
+export function pattyHeatColor(heat: number, kind: ProteinId = 'patty'): string {
+  const t = GRILL.kinds[kind]
+  const [raw, mid, done, over, burnt] = PATTY_PALETTE[kind]
+  return colorAt(
+    [
+      [0, raw],
+      [t.done * 0.5, mid],
+      [t.done, done],
+      [t.overdone, over],
+      [t.burnt, burnt],
+    ],
+    heat,
+  )
+}
+
+/** Cores da proteína (vista lateral) já dentro do lanche. */
+export const PATTY_QUALITY_COLORS: Record<ProteinId, Record<PattyQuality, { base: string; top: string; marks: string }>> = {
+  patty: {
+    raw: { base: '#D9777F', top: '#F2A6AB', marks: '#B85962' },
+    perfect: { base: '#7B3F1C', top: '#A55E30', marks: '#4E230C' },
+    overdone: { base: '#4A2713', top: '#6B3A20', marks: '#2B140A' },
+  },
+  chicken: {
+    raw: { base: '#EDCFA8', top: '#F7E2C6', marks: '#C9A47A' },
+    perfect: { base: '#D9963F', top: '#EDB866', marks: '#B06F22' },
+    overdone: { base: '#9C5D24', top: '#BC7C3E', marks: '#6B3A12' },
+  },
+  veggie: {
+    raw: { base: '#9DB86F', top: '#BBD28F', marks: '#7E9A52' },
+    perfect: { base: '#7A7B3E', top: '#9A9C58', marks: '#4F5A2A' },
+    overdone: { base: '#4C4A28', top: '#6A6840', marks: '#2E2C16' },
+  },
+}
+
+/** Cores de cada item que cozinha: [cru, quase pronto, pronto, passando, queimado]. */
+const COOKABLE_PALETTE: Record<CookableId, readonly [string, string, string, string, string]> = {
+  fries: ['#F5E6A8', '#F6D56A', '#F0A826', '#8A5A14', '#241812'],
+  rustic: ['#EBD9A0', '#E5BE62', '#D68E2A', '#7A4A14', '#241812'],
+  loaded: ['#F5E6A8', '#F6D56A', '#F0A826', '#8A5A14', '#241812'],
+  nuggets: ['#F0DDB8', '#E8C082', '#D9983F', '#7E4A1A', '#241812'],
+  rings: ['#F2E2B2', '#EBC672', '#E39A33', '#82501A', '#241812'],
+  brownie: ['#B98A5C', '#8B5A36', '#5B3320', '#3A2014', '#161010'],
+}
+
+/** Cor do item na fritadeira ou no forno, conforme o tempo de cozimento. */
+export function cookableHeatColor(kind: CookableId, cook: number): string {
+  const c = COOKABLES[kind]
+  const [raw, almost, ready, over, burnt] = COOKABLE_PALETTE[kind]
+  return colorAt(
+    [
+      [0, raw],
+      [c.readySeconds * 0.6, almost],
+      [c.readySeconds, ready],
+      [c.burntSeconds * 0.85, over],
+      [c.burntSeconds, burnt],
+    ],
+    cook,
+  )
+}

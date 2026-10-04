@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { PRICING, RECIPES } from '../config'
+import { INGREDIENTS, PRICING, RECIPES } from '../config'
 import {
-  FRIES_KEY,
   basePrice,
   clampPrice,
   defaultPrices,
@@ -14,20 +13,36 @@ import {
   priceLimits,
   recipeKey,
   setPrice,
+  sideKey,
   tipFactorFromPrice,
 } from './pricing'
-import { testPlayer } from './testing'
+import { order, testPlayer } from './testing'
 
 describe('preços de venda', () => {
-  it('o cardápio tem todos os lanches, a batata e os 3 copos', () => {
-    const keys = menuItems().map((i) => i.key)
-    expect(keys).toHaveLength(RECIPES.length + 1 + 3)
-    expect(keys).toContain(FRIES_KEY)
-    expect(keys).toContain(drinkKey('large'))
+  it('o cardápio tem todos os lanches, acompanhamentos, bebidas (3 tamanhos) e sobremesas', () => {
+    const items = menuItems()
+    const keys = items.map((i) => i.key)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(items.filter((i) => i.kind === 'burger')).toHaveLength(RECIPES.length)
+    expect(items.filter((i) => i.kind === 'side')).toHaveLength(5)
+    expect(items.filter((i) => i.kind === 'drink')).toHaveLength(5 * 3)
+    expect(items.filter((i) => i.kind === 'dessert')).toHaveLength(2)
+    expect(keys).toContain(sideKey('fries'))
+    expect(keys).toContain(drinkKey('shakeChocolate', 'large'))
   })
 
-  it('o preço padrão dá lucro sobre o custo de estoque', () => {
-    for (const item of menuItems()) expect(item.basePrice).toBeGreaterThan(item.cost)
+  it('o preço padrão dá lucro sobre o custo de estoque (margem de pelo menos 35%)', () => {
+    for (const item of menuItems()) {
+      expect(item.basePrice, item.name).toBeGreaterThan(item.cost)
+      expect((item.basePrice - item.cost) / item.basePrice, item.name).toBeGreaterThan(0.35)
+    }
+  })
+
+  it('cada item do cardápio é liberado no nível do seu ingrediente mais avançado', () => {
+    for (const item of menuItems().filter((i) => i.kind === 'burger')) {
+      const recipe = RECIPES.find((r) => r.id === item.recipeId)!
+      for (const ing of recipe.ingredients) expect(INGREDIENTS[ing].unlockLevel, `${recipe.name}: ${ing}`).toBeLessThanOrEqual(recipe.unlockLevel)
+    }
   })
 
   it('o ajuste respeita os limites (mínimo e máximo)', () => {
@@ -46,6 +61,7 @@ describe('preços de venda', () => {
   it('preço desconhecido não altera nada', () => {
     const p = testPlayer()
     expect(setPrice(p, 'recipe:nao-existe', 10)).toBe(p)
+    expect(setPrice(p, 'drink:soda:gigante', 10)).toBe(p)
   })
 
   it('preço mais caro afasta clientes e preço mais barato atrai', () => {
@@ -75,7 +91,7 @@ describe('preços de venda', () => {
 
   it('a razão de preço do pedido compara com o padrão', () => {
     const prices = { ...defaultPrices(), [recipeKey('simples')]: 28 }
-    expect(orderPriceRatio({ recipeId: 'simples', fries: false, drink: null }, prices)).toBeCloseTo(2)
-    expect(orderPriceRatio({ recipeId: 'classico', fries: false, drink: null }, prices)).toBeCloseTo(1)
+    expect(orderPriceRatio(order('simples'), prices)).toBeCloseTo(2)
+    expect(orderPriceRatio(order('classico'), prices)).toBeCloseTo(1)
   })
 })

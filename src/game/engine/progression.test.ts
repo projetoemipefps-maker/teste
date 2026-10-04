@@ -6,7 +6,7 @@ import { formatClock, shiftProgress } from './clock'
 
 describe('XP e nível', () => {
   it('a curva cresce a cada nível', () => {
-    expect(xpToNext(1)).toBe(PROGRESSION.xpBase)
+    expect(xpToNext(1)).toBe(PROGRESSION.earlyXp[0])
     expect(xpToNext(2)).toBeGreaterThan(xpToNext(1))
   })
 
@@ -15,9 +15,9 @@ describe('XP e nível', () => {
   })
 
   it('sobe de nível e carrega o excedente', () => {
-    const r = addXp(1, 40, 20)
+    const r = addXp(1, xpToNext(1) - 5, 10)
     expect(r.level).toBe(2)
-    expect(r.xp).toBe(40 + 20 - xpToNext(1))
+    expect(r.xp).toBe(5)
     expect(r.levelsGained).toBe(1)
   })
 

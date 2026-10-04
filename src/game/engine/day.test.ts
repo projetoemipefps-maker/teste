@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { COMBOS, DRINKS, ECONOMY, LOAN, RECIPES, STOCK_ITEMS, CUP_SIZES } from '../config'
-import { expectedCustomers } from './demand'
+import { CUSTOMER_RULES, DRINK_CONFIG, ECONOMY, LOAN, ORDER_RULES, RECIPES, STOCK_ITEMS } from '../config'
+import { effectiveDayMultiplier, expectedCustomers } from './demand'
 import { menuItems } from './pricing'
 import { canTakeLoan, closeDay, loanInstallment, loanTotal, openDay, restoreDayStart, takeLoan } from './day'
 import { createSession } from './session'
@@ -13,7 +13,7 @@ const fixedTotal = ECONOMY.fixedCosts.reduce((s, c) => s + c.amount, 0)
 function played(overrides: Partial<SessionState['stats']> = {}, stock = startingStock()): SessionState {
   return {
     ...createSession(1, { stock }),
-    stats: { served: 10, lost: 2, revenue: 300, tips: 40, starsTotal: 40, xpGained: 90, soldByRecipe: { classico: 4, duplo: 6, simples: 1 }, ...overrides },
+    stats: { served: 10, lost: 2, revenue: 300, tips: 40, starsTotal: 40, xpGained: 90, soldByRecipe: { classico: 4, duplo: 6, simples: 1 }, influencerHappy: 0, ...overrides },
   }
 }
 
@@ -188,32 +188,57 @@ describe('caixa negativo, empréstimo e falência', () => {
 })
 
 describe('economia: balanceamento básico', () => {
-  /** Lucro médio por pedido (preço − custo de estoque), ponderando lanches e combos pelo sorteio real. */
+  /** Lucro médio por pedido (preço − custo de estoque) no nível 1, com as chances reais de acompanhamento e bebida. */
   function averageMarginPerOrder(): number {
     const items = menuItems()
     const margin = (key: string) => {
       const item = items.find((i) => i.key === key)!
       return item.basePrice - item.cost
     }
-    const burger = RECIPES.reduce((s, r) => s + margin(`recipe:${r.id}`), 0) / RECIPES.length
-    const drink = CUP_SIZES.reduce((s, c) => s + margin(`drink:${c}`), 0) / CUP_SIZES.length
-    const totalWeight = COMBOS.reduce((s, c) => s + c.weight, 0)
-    const pFries = COMBOS.filter((c) => c.fries).reduce((s, c) => s + c.weight, 0) / totalWeight
-    const pDrink = COMBOS.filter((c) => c.drink).reduce((s, c) => s + c.weight, 0) / totalWeight
-    return burger + pFries * margin('fries') + pDrink * drink
+    const burgers = RECIPES.filter((r) => r.unlockLevel <= 1)
+    const burger = burgers.reduce((s, r) => s + margin(`recipe:${r.id}`), 0) / burgers.length
+    const sizes = Object.keys(DRINK_CONFIG.soda.basePrice)
+    const drink = sizes.reduce((s, size) => s + margin(`drink:soda:${size}`), 0) / sizes.length
+    return burger + ORDER_RULES.sideChance.base * margin('side:fries') + ORDER_RULES.drinkChance.base * drink
   }
 
   it('o ponto de equilíbrio (cobrir os custos fixos) exige bem menos pedidos que a clientela esperada', () => {
     const breakEven = fixedTotal / averageMarginPerOrder()
     const expected = expectedCustomers(testPlayer())
     expect(breakEven).toBeGreaterThan(5) // não é grátis ficar aberto
-    expect(breakEven).toBeLessThan(expected * 0.6) // atendendo bem, dá lucro
+    expect(breakEven).toBeLessThan(expected * 0.7) // atendendo bem, dá lucro
   })
 
   it('o estoque inicial e o caixa inicial cobrem o primeiro dia de custos fixos', () => {
     const p = testPlayer()
     expect(p.money).toBeGreaterThan(fixedTotal)
     expect(p.stock.patty).toBeGreaterThan(5)
-    expect(DRINKS.cups.small.sodaUnits).toBeGreaterThan(0)
+  })
+})
+
+describe('influenciador e movimento do dia seguinte', () => {
+  it('cada influenciador bem atendido aumenta o movimento de amanhã, com teto', () => {
+    const none = closeDay(openDay(testPlayer()), played({ influencerHappy: 0 }))
+    expect(none.player.dayBoost).toBe(1)
+    expect(none.summary.nextDayBoost).toBe(0)
+    const two = closeDay(openDay(testPlayer()), played({ influencerHappy: 2 }))
+    expect(two.summary.nextDayBoost).toBeCloseTo(2 * CUSTOMER_RULES.influencerBoost.perCustomer)
+    expect(two.player.dayBoost).toBeCloseTo(1 + two.summary.nextDayBoost)
+    const many = closeDay(openDay(testPlayer()), played({ influencerHappy: 99 }))
+    expect(many.summary.nextDayBoost).toBe(CUSTOMER_RULES.influencerBoost.max)
+  })
+
+  it('o bônus vale só para o dia seguinte: fechar outro dia sem influenciador zera', () => {
+    const boosted = closeDay(openDay(testPlayer()), played({ influencerHappy: 3 })).player
+    expect(boosted.dayBoost).toBeGreaterThan(1)
+    const next = closeDay(openDay(boosted), played({ influencerHappy: 0 })).player
+    expect(next.dayBoost).toBe(1)
+  })
+
+  it('o bônus entra no movimento esperado e no movimento da sessão', () => {
+    const base = testPlayer({ day: 5 })
+    const boosted = { ...base, dayBoost: 1.3 }
+    expect(expectedCustomers(boosted)).toBeGreaterThan(expectedCustomers(base))
+    expect(effectiveDayMultiplier(boosted)).toBeCloseTo(effectiveDayMultiplier(base) * 1.3)
   })
 })

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { SHIFT, DEMAND, ECONOMY } from '../config'
+import { SHIFT, DEMAND, ECONOMY, PROGRESSION } from '../config'
+import { order, testCustomer } from '../engine/testing'
 import { useGameStore } from './gameStore'
 
 // O store usa localStorage (persist); no ambiente de teste (node) ele simplesmente não grava.
@@ -97,5 +98,106 @@ describe('fluxo do dia no store', () => {
     state().takeLoan()
     expect(state().player.money).toBe(-1)
     expect(money).toBeGreaterThan(0)
+  })
+})
+
+/** Cliente esperando um "Simples" e um lanche perfeito já na bandeja: servir rende 18 XP no nível 1. */
+function readyToServe(xp: number, level = 1) {
+  useGameStore.setState({ player: { ...state().player, level } })
+  state().openShop()
+  const session = state().session
+  useGameStore.setState({
+    player: { ...state().player, xp },
+    session: {
+      ...session,
+      slots: [testCustomer(order('simples')), null, null],
+      selectedSlot: 0,
+      tray: { ...session.tray, burgers: [{ ingredients: ['bunBottom', 'patty', 'bunTop'], patties: ['perfect'] }] },
+    },
+  })
+}
+
+describe('subir de nível no store', () => {
+  beforeEach(() => {
+    state().newGame()
+  })
+
+  it('XP suficiente na entrega abre a tela de nível novo, pausa o jogo e libera o desbloqueio', () => {
+    readyToServe(PROGRESSION.earlyXp[0]! - 1)
+    state().serve()
+    expect(state().player.level).toBe(2)
+    expect(state().levelUp).toMatchObject({ from: 1, level: 2 })
+    expect(state().levelUp?.unlocks.length).toBeGreaterThan(0)
+    expect(state().paused).toBe(true)
+  })
+
+  it('continuar fecha a tela e retoma o jogo', () => {
+    readyToServe(PROGRESSION.earlyXp[0]! - 1)
+    state().serve()
+    state().dismissLevelUp()
+    expect(state().levelUp).toBeNull()
+    expect(state().paused).toBe(false)
+  })
+
+  it('sem XP suficiente não aparece tela de nível novo', () => {
+    readyToServe(0, 10)
+    state().serve()
+    expect(state().levelUp).toBeNull()
+    expect(state().player.level).toBe(10)
+    expect(state().player.xp).toBeGreaterThan(0)
+  })
+
+  it('fechar a tela de nível novo não despausa se a montagem de referência estiver aberta', () => {
+    readyToServe(PROGRESSION.earlyXp[0]! - 1)
+    state().serve()
+    useGameStore.setState({ referenceSlot: 0 })
+    state().dismissLevelUp()
+    expect(state().paused).toBe(true)
+  })
+})
+
+describe('montagem de referência e livro de receitas', () => {
+  beforeEach(() => {
+    state().newGame()
+  })
+
+  it('abrir a referência pausa o dia e fechar retoma', () => {
+    state().openShop()
+    state().openReference(0)
+    expect(state().referenceSlot).toBe(0)
+    expect(state().paused).toBe(true)
+    state().closeReference()
+    expect(state().referenceSlot).toBeNull()
+    expect(state().paused).toBe(false)
+  })
+
+  it('fechar a referência mantém a pausa se houver nível novo pendente', () => {
+    state().openShop()
+    state().openReference(0)
+    useGameStore.setState({ levelUp: { from: 1, level: 2, unlocks: [] } })
+    state().closeReference()
+    expect(state().paused).toBe(true)
+  })
+
+  it('o livro de receitas volta para a tela de onde foi aberto', () => {
+    expect(state().screen).toBe('prep')
+    state().openRecipeBook()
+    expect(state().screen).toBe('recipes')
+    state().closeRecipeBook()
+    expect(state().screen).toBe('prep')
+
+    state().openShop()
+    state().setPaused(true)
+    state().openRecipeBook()
+    expect(state().screen).toBe('recipes')
+    state().closeRecipeBook()
+    expect(state().screen).toBe('kitchen')
+  })
+
+  it('abrir o livro duas vezes seguidas não perde a tela de origem', () => {
+    state().openRecipeBook()
+    state().openRecipeBook()
+    state().closeRecipeBook()
+    expect(state().screen).toBe('prep')
   })
 })

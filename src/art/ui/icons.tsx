@@ -156,3 +156,43 @@ export function TabCupIcon(props: P) {
     </svg>
   )
 }
+
+export function LockIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <path d="M9 14 V10 Q9 3 16 3 Q23 3 23 10 V14" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+      <rect x="5" y="13" width="22" height="16" rx="4.5" fill="#F5B82E" stroke={INK} strokeWidth="3" />
+      <circle cx="16" cy="20.5" r="2.6" fill={INK} />
+      <path d="M16 22 V25" stroke={INK} strokeWidth="2.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function BookIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <path d="M4 6 Q10 4 16 7 Q22 4 28 6 V26 Q22 24 16 27 Q10 24 4 26Z" fill="#FFF3DC" stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+      <path d="M16 7 V27" stroke={INK} strokeWidth="2.6" />
+      <path d="M8 11 Q11 10 13 11.5 M8 15 Q11 14 13 15.5 M19 11.5 Q21 10 24 11 M19 15.5 Q21 14 24 15" fill="none" stroke="#E63B2E" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function TabDessertIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <path d="M9 15 L16 30 L23 15Z" fill="#E8B76A" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+      <circle cx="16" cy="12" r="7.5" fill="#FFB6C8" stroke={INK} strokeWidth="2.5" />
+      <circle cx="15" cy="6" r="5.5" fill="#FFF3D6" stroke={INK} strokeWidth="2.5" />
+      <circle cx="18.5" cy="2.5" r="2.2" fill="#E63B2E" stroke={INK} strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+export function StarBurst(props: P) {
+  return (
+    <svg viewBox="0 0 40 40" {...props}>
+      <path d="M20 2 L24 14 L37 12 L28 21 L35 32 L22 28 L18 39 L14 28 L3 32 L10 21 L2 12 L15 14Z" fill="#FFC531" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+    </svg>
+  )
+}

@@ -11,7 +11,7 @@ export function createPlayer(): PlayerState {
     level: PROGRESSION.startingLevel,
     day: PROGRESSION.startingDay,
     reputation: PROGRESSION.startingReputation,
-    stock: startingStock(),
+    stock: startingStock(PROGRESSION.startingLevel),
     stockAge: {},
     prices: defaultPrices(),
     reviews: [],
@@ -19,6 +19,7 @@ export function createPlayer(): PlayerState {
     debtDays: 0,
     todayPurchases: 0,
     bankrupt: false,
+    dayBoost: 1,
     phase: 'prep',
     dayStart: null,
   }

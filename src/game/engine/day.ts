@@ -1,4 +1,4 @@
-import { ECONOMY, LOAN, STOCK_IDS } from '../config'
+import { CUSTOMER_RULES, ECONOMY, LOAN, STOCK_IDS } from '../config'
 import { ageStock, type SpoilReport } from './stock'
 import type { PlayerCore, PlayerState, SessionState } from './types'
 
@@ -52,8 +52,10 @@ export interface DaySummary {
   debtDays: number
   bankrupt: boolean
   reputation: number
-  /** Passou de nível no dia (para o resumo comemorar). */
+  /** Nível ao abrir o dia (para o resumo comemorar se subiu). */
   level: number
+  /** Movimento extra de amanhã por influenciadores bem atendidos hoje (0 = nenhum; 0.12 = +12%). */
+  nextDayBoost: number
 }
 
 /** Fecha o dia: cobra custos fixos e parcela, envelhece o estoque, confere a falência e monta o resumo. */
@@ -68,6 +70,7 @@ export function closeDay(player: PlayerState, session: SessionState): { player: 
   const debtDays = money < 0 ? player.debtDays + 1 : 0
   const bankrupt = debtDays >= ECONOMY.bankruptcyDays
   const expenses = player.todayPurchases + fixedTotal + loanPayment
+  const boost = Math.min(CUSTOMER_RULES.influencerBoost.max, stats.influencerHappy * CUSTOMER_RULES.influencerBoost.perCustomer)
 
   const entries = Object.entries(stats.soldByRecipe)
   const best = entries.reduce<[string, number] | null>((acc, e) => (!acc || e[1] > acc[1] ? e : acc), null)
@@ -83,6 +86,7 @@ export function closeDay(player: PlayerState, session: SessionState): { player: 
     debtDays,
     bankrupt,
     todayPurchases: 0,
+    dayBoost: 1 + boost,
     phase: 'prep',
     dayStart: null,
   }
@@ -109,6 +113,7 @@ export function closeDay(player: PlayerState, session: SessionState): { player: 
       bankrupt,
       reputation: player.reputation,
       level: player.level,
+      nextDayBoost: boost,
     },
   }
 }

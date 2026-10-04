@@ -8,42 +8,55 @@ import {
   createPlayer,
   createSession,
   cupToTray,
-  dayMultiplier,
   discardBurger,
   discardCup,
   discardTrayItem,
+  effectiveDayMultiplier,
   flipPatty,
-  friesToTray,
   isClosed,
   openDay,
-  placeFries,
+  placeCookable,
   placeRawPatty,
   purchaseStock,
   restoreDayStart,
+  scoopIceCream,
   selectSlot,
   sendBurgerToTray,
   serveOrder,
   setPouring,
   setPrice,
   step,
-  takeFries,
+  storedToTray,
+  takeCookable,
   takeLoan,
   takePatty,
   type ActionResult,
   type Cart,
+  type CookableId,
   type CupSize,
   type DaySummary,
+  type DrinkKind,
   type GameEvent,
   type PlayerState,
+  type ProteinId,
   type SessionState,
-  type TrayItem,
+  type Station,
+  type TrayCategory,
+  type UnlockEntry,
 } from '../engine'
 import { emitGameEvents } from '../loop/eventBus'
 import { SAVE_VERSION, defaultSave, migrateSave, sanitizeSave } from './migrations'
 import { createThrottledStorage } from './storage'
 import { UI_TIMING, type IngredientId } from '../config'
 
-export type Screen = 'title' | 'prep' | 'kitchen' | 'summary' | 'bankrupt' | 'settings'
+export type Screen = 'title' | 'prep' | 'kitchen' | 'summary' | 'bankrupt' | 'settings' | 'recipes'
+
+/** Subida de nível à espera de ser mostrada (pode juntar vários níveis seguidos). */
+export interface PendingLevelUp {
+  from: number
+  level: number
+  unlocks: UnlockEntry[]
+}
 
 interface GameState {
   screen: Screen
@@ -57,14 +70,24 @@ interface GameState {
   /** Aviso mostrado na preparação (ex.: dia interrompido). */
   notice: string | null
   reviewsOpen: boolean
+  levelUp: PendingLevelUp | null
+  /** Vaga do cliente cujo pedido está sendo mostrado como referência de montagem. */
+  referenceSlot: number | null
+  /** Tela para onde o Livro de Receitas volta. */
+  recipeBookFrom: Screen
 
   goTo: (screen: Screen) => void
+  openRecipeBook: () => void
+  closeRecipeBook: () => void
   newGame: () => void
   continueGame: () => void
   openShop: () => void
   afterSummary: () => void
   setPaused: (paused: boolean) => void
   setReviewsOpen: (open: boolean) => void
+  dismissLevelUp: () => void
+  openReference: (slot: number) => void
+  closeReference: () => void
   dismissNotice: () => void
   setReduceMotion: (value: boolean) => void
   eraseSave: () => void
@@ -78,19 +101,20 @@ interface GameState {
   addIngredient: (id: IngredientId) => void
   addHeldPatty: (index: number) => void
   discard: () => void
-  discardTray: (item: TrayItem) => void
+  discardTray: (category: TrayCategory) => void
   serve: () => void
 
-  placePatty: (slot: number) => void
+  placePatty: (slot: number, kind: ProteinId) => void
   flipPatty: (slot: number) => void
   takePatty: (slot: number) => void
-  placeFries: (basket: number) => void
-  takeFries: (basket: number) => void
-  friesToTray: (warmerIndex: number) => void
-  chooseCup: (size: CupSize) => void
+  placeCookable: (station: Station, index: number, kind: CookableId) => void
+  takeCookable: (station: Station, index: number) => void
+  storedToTray: (station: Station, index: number) => void
+  chooseCup: (kind: DrinkKind, size: CupSize) => void
   setPouring: (pouring: boolean) => void
   cupToTray: () => void
   discardCup: () => void
+  scoopIceCream: () => void
 }
 
 const newSeed = () => (Math.random() * 0xffffffff) >>> 0
@@ -100,9 +124,26 @@ const INTERRUPTED_NOTICE = 'O dia anterior foi interrompido. Ele recomeça do in
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => {
+      /** Junta subidas de nível seguidas numa só tela e pausa o jogo enquanto ela aparece. */
+      const levelUpFrom = (events: GameEvent[], current: PendingLevelUp | null): PendingLevelUp | null => {
+        let pending = current
+        for (const e of events) {
+          if (e.type !== 'leveledUp') continue
+          pending = pending
+            ? { from: pending.from, level: e.level, unlocks: [...pending.unlocks, ...e.unlocks] }
+            : { from: e.from, level: e.level, unlocks: e.unlocks }
+        }
+        return pending
+      }
+
       const apply = (r: { session?: SessionState; player?: PlayerState; events: GameEvent[] }) => {
         if (r.events.length === 0 && !r.session && !r.player) return
-        set({ ...(r.session && { session: r.session }), ...(r.player && { player: r.player }) })
+        const levelUp = levelUpFrom(r.events, get().levelUp)
+        set({
+          ...(r.session && { session: r.session }),
+          ...(r.player && { player: r.player }),
+          ...(levelUp !== get().levelUp && { levelUp, paused: true }),
+        })
         emitGameEvents(r.events)
       }
       /** Aplica uma ação do engine sobre a sessão atual (ignora se nada mudou). */
@@ -117,7 +158,15 @@ export const useGameStore = create<GameState>()(
         const { player, session, screen } = get()
         if (screen !== 'kitchen' || !session.ended) return
         const closed = closeDay(player, session)
-        set({ player: closed.player, summary: closed.summary, screen: 'summary', paused: false, reviewsOpen: false })
+        set({
+          player: closed.player,
+          summary: closed.summary,
+          screen: 'summary',
+          paused: false,
+          reviewsOpen: false,
+          referenceSlot: null,
+          levelUp: null,
+        })
       }
 
       return {
@@ -130,8 +179,13 @@ export const useGameStore = create<GameState>()(
         summary: null,
         notice: null,
         reviewsOpen: false,
+        levelUp: null,
+        referenceSlot: null,
+        recipeBookFrom: 'prep',
 
         goTo: (screen) => set({ screen }),
+        openRecipeBook: () => set((s) => ({ recipeBookFrom: s.screen === 'recipes' ? s.recipeBookFrom : s.screen, screen: 'recipes' })),
+        closeRecipeBook: () => set((s) => ({ screen: s.recipeBookFrom })),
         newGame: () =>
           set({
             hasSave: true,
@@ -141,6 +195,8 @@ export const useGameStore = create<GameState>()(
             summary: null,
             notice: null,
             reviewsOpen: false,
+            levelUp: null,
+            referenceSlot: null,
             screen: 'prep',
           }),
         continueGame: () => {
@@ -153,6 +209,8 @@ export const useGameStore = create<GameState>()(
             session: emptySession(),
             paused: false,
             reviewsOpen: false,
+            levelUp: null,
+            referenceSlot: null,
             screen: 'prep',
           })
         },
@@ -162,17 +220,25 @@ export const useGameStore = create<GameState>()(
           const opened = openDay(player)
           set({
             player: opened,
-            session: createSession(newSeed(), { stock: opened.stock, dayMultiplier: dayMultiplier(opened.day) }),
+            session: createSession(newSeed(), {
+              stock: opened.stock,
+              level: opened.level,
+              dayMultiplier: effectiveDayMultiplier(opened),
+            }),
             paused: false,
             notice: null,
             summary: null,
+            levelUp: null,
+            referenceSlot: null,
             screen: 'kitchen',
           })
         },
         afterSummary: () => set((s) => ({ screen: s.player.bankrupt ? 'bankrupt' : 'prep' })),
-        setPaused: (paused) =>
-          set((s) => ({ paused, session: paused ? setPouring(s.session, false) : s.session })),
+        setPaused: (paused) => set((s) => ({ paused, session: paused ? setPouring(s.session, false) : s.session })),
         setReviewsOpen: (reviewsOpen) => set({ reviewsOpen }),
+        dismissLevelUp: () => set((s) => ({ levelUp: null, paused: s.reviewsOpen || s.referenceSlot !== null ? s.paused : false })),
+        openReference: (slot) => set((s) => ({ referenceSlot: slot, paused: true, session: setPouring(s.session, false) })),
+        closeReference: () => set((s) => ({ referenceSlot: null, paused: s.levelUp !== null || s.reviewsOpen })),
         dismissNotice: () => set({ notice: null }),
         setReduceMotion: (reduceMotion) => set((s) => ({ settings: { ...s.settings, reduceMotion } })),
         eraseSave: () =>
@@ -183,6 +249,7 @@ export const useGameStore = create<GameState>()(
             paused: false,
             summary: null,
             notice: null,
+            levelUp: null,
           }),
 
         buyStock: (cart) => set((s) => ({ player: purchaseStock(s.player, cart) })),
@@ -206,20 +273,21 @@ export const useGameStore = create<GameState>()(
         },
         addHeldPatty: (index) => act((s) => addPattyToBurger(s, index)),
         discard: () => act(discardBurger),
-        discardTray: (item) => act((s) => discardTrayItem(s, item)),
-        placePatty: (slot) => act((s) => placeRawPatty(s, slot)),
+        discardTray: (category) => act((s) => discardTrayItem(s, category)),
+        placePatty: (slot, kind) => act((s) => placeRawPatty(s, slot, kind)),
         flipPatty: (slot) => act((s) => flipPatty(s, slot)),
         takePatty: (slot) => act((s) => takePatty(s, slot)),
-        placeFries: (basket) => act((s) => placeFries(s, basket)),
-        takeFries: (basket) => act((s) => takeFries(s, basket)),
-        friesToTray: (index) => act((s) => friesToTray(s, index)),
-        chooseCup: (size) => act((s) => chooseCup(s, size)),
+        placeCookable: (station, index, kind) => act((s) => placeCookable(s, station, index, kind)),
+        takeCookable: (station, index) => act((s) => takeCookable(s, station, index)),
+        storedToTray: (station, index) => act((s) => storedToTray(s, station, index)),
+        chooseCup: (kind, size) => act((s) => chooseCup(s, kind, size)),
         setPouring: (pouring) => {
           const next = setPouring(get().session, pouring)
           if (next !== get().session) set({ session: next })
         },
         cupToTray: () => act(cupToTray),
         discardCup: () => act(discardCup),
+        scoopIceCream: () => act(scoopIceCream),
         serve: () => {
           const { session, player } = get()
           const r = serveOrder(session, player)

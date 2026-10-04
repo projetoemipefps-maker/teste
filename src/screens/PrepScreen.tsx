@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
-import { Coin, Star } from '@/art'
+import { BookIcon, Coin, Star } from '@/art'
 import { Button } from '@/components/Button'
 import { formatMoney } from '@/components/format'
 import { ForecastCard } from '@/components/prep/ForecastCard'
@@ -104,6 +104,7 @@ export function PrepScreen() {
   const setPrice = useGameStore((s) => s.setPrice)
   const openShop = useGameStore((s) => s.openShop)
   const goTo = useGameStore((s) => s.goTo)
+  const openRecipeBook = useGameStore((s) => s.openRecipeBook)
   const [tab, setTab] = useState<Tab>('stock')
   const [cart, setCart] = useState<Cart>({})
 
@@ -127,9 +128,18 @@ export function PrepScreen() {
             ‹
           </motion.button>
           <div className="min-w-0 flex-1">
-            <p className="text-xs leading-none text-white/90">Preparação do dia</p>
+            <p className="truncate text-xs leading-none text-white/90">Preparação</p>
             <h1 className="font-display text-2xl leading-tight text-white [text-shadow:0_2px_0_#3B1F0E]">Dia {player.day}</h1>
           </div>
+          <motion.button
+            type="button"
+            aria-label="Livro de receitas"
+            onClick={openRecipeBook}
+            whileTap={{ scale: 0.9, y: 3 }}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border-4 border-ink bg-cream shadow-[0_4px_0_#3B1F0E]"
+          >
+            <BookIcon className="h-7 w-7" />
+          </motion.button>
           <div className="flex flex-col items-end gap-1">
             <div
               className={`flex items-center gap-1.5 rounded-full border-[3px] border-ink px-2.5 py-px font-display text-base ${player.money < 0 ? 'bg-[#FFD0CB] text-tomato-dark' : 'bg-cream text-ink'}`}
@@ -138,10 +148,18 @@ export function PrepScreen() {
               <Coin className="h-6 w-6" />
               {formatMoney(player.money)}
             </div>
-            <div className="flex" role="img" aria-label={`Reputação ${player.reputation.toFixed(1)} de 5`}>
-              {Array.from({ length: 5 }, (_, i) => (
-                <Star key={i} id={`prep-star-${i}`} amount={starFill(player.reputation, i)} className="-mx-px h-5 w-5" />
-              ))}
+            <div className="flex items-center gap-1.5">
+              <span
+                aria-label={`Nível ${player.level}`}
+                className="grid h-6 min-w-6 place-items-center rounded-full border-[3px] border-ink bg-mustard px-1 font-display text-[13px] leading-none text-ink"
+              >
+                {player.level}
+              </span>
+              <div className="flex" role="img" aria-label={`Reputação ${player.reputation.toFixed(1)} de 5`}>
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Star key={i} id={`prep-star-${i}`} amount={starFill(player.reputation, i)} className="-mx-px h-5 w-5" />
+                ))}
+              </div>
             </div>
           </div>
         </div>

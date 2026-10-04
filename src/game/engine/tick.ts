@@ -1,13 +1,13 @@
-import { CUSTOMERS, DEMAND, FRYER, SHIFT } from '../config'
+import { COOKABLES, CUSTOMERS, DEMAND, SHIFT } from '../config'
 import { isClosing } from './clock'
-import { firstFreeSlot, rollCustomer } from './customers'
+import { changeMind, firstFreeSlot, patienceRatio, rollCustomer } from './customers'
 import { spawnInterval } from './demand'
 import { pourCup } from './drinks'
 import { cookPatty, pattyStage } from './grill'
 import { addReview } from './reputation'
 import { makeLostReview } from './reviews'
 import { nextRandom } from './rng'
-import type { Customer, FriesPortion, FryBasket, GameEvent, GrillPatty, PlayerState, SessionState, StepResult } from './types'
+import type { CookerItem, Customer, GameEvent, GrillPatty, PlayerState, SessionState, Station, StepResult, StoredItem } from './types'
 
 const burntBefore = (p: GrillPatty) => pattyStage(p) === 'burnt'
 
@@ -30,7 +30,17 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
       return leaveTimer <= 0 ? null : { ...c, leaveTimer }
     }
     const patience = c.patience - dt
-    if (patience > 0) return { ...c, patience }
+    if (patience > 0) {
+      const waiting = { ...c, patience }
+      // Indeciso: muda de ideia no meio do pedido.
+      if (c.mindChangeAt !== null && !c.changedMind && patienceRatio(waiting) <= c.mindChangeAt) {
+        const [changed, next] = changeMind(waiting, session.level, rngState)
+        rngState = next
+        events.push({ type: 'customerChangedMind', slot: c.slot, customerId: c.id })
+        return changed
+      }
+      return waiting
+    }
     const review = makeLostReview(c.id, player.day)
     nextPlayer = addReview(nextPlayer, review)
     lost += 1
@@ -45,14 +55,20 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
     if (!burntBefore(p) && burntBefore(next)) events.push({ type: 'pattyBurnt', slot })
     return next
   })
-  const fryer = session.fryer.map((b, basket): FryBasket | null => {
-    if (!b) return null
-    const cook = b.cook + dt
-    if (b.cook < FRYER.readySeconds && cook >= FRYER.readySeconds) events.push({ type: 'friesReady', basket })
-    if (b.cook < FRYER.burntSeconds && cook >= FRYER.burntSeconds) events.push({ type: 'friesBurnt', basket })
-    return { cook }
-  })
-  const warmer: FriesPortion[] = session.warmer.map((f) => ({ age: f.age + dt }))
+  const cookItems = (items: (CookerItem | null)[], station: Station): (CookerItem | null)[] =>
+    items.map((b, index) => {
+      if (!b) return null
+      const cook = b.cook + dt
+      const c = COOKABLES[b.kind]
+      if (b.cook < c.readySeconds && cook >= c.readySeconds) events.push({ type: 'cookReady', station, index })
+      if (b.cook < c.burntSeconds && cook >= c.burntSeconds) events.push({ type: 'cookBurnt', station, index })
+      return { ...b, cook }
+    })
+  const fryer = cookItems(session.fryer, 'fryer')
+  const oven = cookItems(session.oven, 'oven')
+  const age = (items: StoredItem[]): StoredItem[] => items.map((f) => ({ ...f, age: f.age + dt }))
+  const warmer = age(session.warmer)
+  const shelf = age(session.shelf)
   let cup = session.cup
   if (cup && session.pouring) {
     const poured = pourCup(cup, dt)
@@ -69,10 +85,10 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
     if (free >= 0) {
       const [customer, s1] = rollCustomer(
         rngState,
-        nextPlayer.level,
+        session.level,
         nextCustomerId,
         free,
-        slots.flatMap((c) => (c ? [c.variant] : [])),
+        slots.filter((c): c is Customer => c !== null),
         { prices: nextPlayer.prices, reputation: nextPlayer.reputation },
       )
       const [jitter, s2] = nextRandom(s1)
@@ -80,7 +96,7 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
       events.push({ type: 'customerArrived', slot: free, customerId: customer.id })
       nextCustomerId += 1
       rngState = s2
-      spawnTimer = spawnInterval(elapsed, session.dayMultiplier, nextPlayer.reputation, nextPlayer.prices, jitter)
+      spawnTimer = spawnInterval(elapsed, session.dayMultiplier, nextPlayer.reputation, nextPlayer.prices, jitter, session.level)
     } else {
       spawnTimer = 0 // balcão cheio: o próximo chega assim que abrir uma vaga
     }
@@ -105,6 +121,8 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
       grill,
       fryer,
       warmer,
+      oven,
+      shelf,
       cup,
       pouring: ended ? false : session.pouring,
       elapsed,

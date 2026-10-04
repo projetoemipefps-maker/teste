@@ -1,6 +1,6 @@
-import { friesStage } from './fryer'
+import { cookStage } from './cookers'
 import { pattyHint } from './grill'
-import type { SessionState } from './types'
+import type { SessionState, Station } from './types'
 
 export type StationAlert = 'none' | 'ready' | 'warn'
 
@@ -16,11 +16,12 @@ export function grillAlert(session: SessionState): StationAlert {
   return alert
 }
 
-export function fryerAlert(session: SessionState): StationAlert {
+/** Aviso da fritadeira ou do forno: queimou (atenção) ou tem algo pronto. */
+export function cookerAlert(session: SessionState, station: Station): StationAlert {
   let alert: StationAlert = 'none'
-  for (const b of session.fryer) {
+  for (const b of station === 'fryer' ? session.fryer : session.oven) {
     if (!b) continue
-    const stage = friesStage(b.cook)
+    const stage = cookStage(b.kind, b.cook)
     if (stage === 'burnt') return 'warn'
     if (stage === 'ready') alert = 'ready'
   }

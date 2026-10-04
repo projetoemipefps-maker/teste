@@ -1,4 +1,4 @@
-import { DEMAND, SHIFT } from '../config'
+import { DEMAND, PROGRESSION, SHIFT } from '../config'
 import { demandFactorFromPrices } from './pricing'
 import { demandFactorForReputation } from './reputation'
 import { shiftProgress } from './clock'
@@ -22,6 +22,10 @@ export function dayMultiplier(day: number): number {
   return DEMAND.dayMultiplierMin + frac * (DEMAND.dayMultiplierMax - DEMAND.dayMultiplierMin)
 }
 
+/** Com o nível, os clientes chegam mais rápido e em maior número. */
+export const levelDemandFactor = (level: number): number =>
+  Math.min(PROGRESSION.difficulty.demandMax, 1 + (level - 1) * PROGRESSION.difficulty.demandPerLevel)
+
 export type Forecast = 'weak' | 'normal' | 'strong'
 export function forecastOf(multiplier: number): Forecast {
   if (multiplier < DEMAND.forecast.weak) return 'weak'
@@ -36,20 +40,31 @@ export function spawnInterval(
   reputation: number,
   prices: Prices,
   jitter: number,
+  level = 1,
 ): number {
-  const rate = hourlyDemand(elapsed) * dayMult * demandFactorForReputation(reputation) * demandFactorFromPrices(prices)
+  const rate =
+    hourlyDemand(elapsed) *
+    dayMult *
+    demandFactorForReputation(reputation) *
+    demandFactorFromPrices(prices, level) *
+    levelDemandFactor(level)
   const wobble = 1 + (jitter * 2 - 1) * DEMAND.spawnJitter
   const interval = (DEMAND.baseSpawnInterval / Math.max(0.05, rate)) * wobble
   return Math.min(DEMAND.maxSpawnInterval, Math.max(DEMAND.minSpawnInterval, interval))
 }
 
+/** Movimento do dia que vai para a sessão: previsão × bônus de influenciadores de ontem. */
+export const effectiveDayMultiplier = (player: Pick<PlayerState, 'day' | 'dayBoost'>): number =>
+  dayMultiplier(player.day) * player.dayBoost
+
 /** Clientes esperados no dia (estimativa para a tela de preparação). */
-export function expectedCustomers(player: Pick<PlayerState, 'day' | 'reputation' | 'prices'>): number {
+export function expectedCustomers(player: Pick<PlayerState, 'day' | 'reputation' | 'prices' | 'level' | 'dayBoost'>): number {
   const meanHourly = DEMAND.hourly.reduce((a, b) => a + b, 0) / DEMAND.hourly.length
   const rate =
     meanHourly *
-    dayMultiplier(player.day) *
+    effectiveDayMultiplier(player) *
     demandFactorForReputation(player.reputation) *
-    demandFactorFromPrices(player.prices)
+    demandFactorFromPrices(player.prices, player.level) *
+    levelDemandFactor(player.level)
   return Math.round((SHIFT.durationSeconds / DEMAND.baseSpawnInterval) * rate)
 }

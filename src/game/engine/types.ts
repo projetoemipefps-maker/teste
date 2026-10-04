@@ -1,61 +1,108 @@
-import type { CupSize, IngredientId, StockId } from '../config'
+import type {
+  CookableId,
+  CupSize,
+  CustomerTypeId,
+  DessertId,
+  DrinkKind,
+  IngredientId,
+  ProteinId,
+  SideId,
+  StockId,
+} from '../config'
+import type { UnlockEntry } from './unlocks'
 
-export type { CupSize, StockId }
+export type { CupSize, CustomerTypeId, DessertId, DrinkKind, ProteinId, SideId, StockId, CookableId }
 
 /** Quantidade de cada item do estoque. */
 export type Stock = Record<StockId, number>
 /** Dias parado de cada item fresco. */
 export type StockAges = Partial<Record<StockId, number>>
-/** Preços de venda: `recipe:<id>`, `fries`, `drink:<tamanho>`. */
+/** Preços de venda: `recipe:<id>`, `side:<id>`, `drink:<tipo>:<tamanho>`, `dessert:<id>`. */
 export type Prices = Record<string, number>
 
-export type Mood = 'neutral' | 'happy' | 'angry'
+export interface DrinkOrder {
+  kind: DrinkKind
+  size: CupSize
+}
 
-/** O que o cliente pediu: um lanche e, opcionalmente, batata e bebida. */
+/** O que o cliente pediu: lanches e, opcionalmente, acompanhamentos, bebidas e sobremesas. */
 export interface OrderItems {
-  recipeId: string
-  fries: boolean
-  drink: CupSize | null
+  burgers: string[]
+  sides: SideId[]
+  drinks: DrinkOrder[]
+  desserts: DessertId[]
+}
+
+/** Expressão do cliente: ao sair é feliz, neutro ou bravo; esperando, neutro ou impaciente. */
+export type Mood = 'neutral' | 'happy' | 'impatient' | 'angry'
+
+/** Partes do visual do cliente (índices nas tabelas de /src/art/customers/parts.ts). */
+export interface CustomerLook {
+  skin: number
+  hairStyle: number
+  hairColor: number
+  outfit: number
+  outfitColor: number
+  accessory: number
 }
 
 export interface Customer {
   id: number
   slot: number
+  type: CustomerTypeId
   order: OrderItems
   /** Preço do pedido em relação ao preço padrão (1 = padrão); afeta paciência e gorjeta. */
   priceRatio: number
-  variant: number
+  look: CustomerLook
+  /** Segunda pessoa da família (desenhada ao lado). */
+  companion: CustomerLook | null
   patienceMax: number
   patience: number
   status: 'waiting' | 'leaving'
+  /** Reação ao sair (feliz, neutro ou bravo); esperando fica neutro (use `customerMood`). */
   mood: Mood
   /** Segundos restantes até liberar a vaga, quando `status === 'leaving'`. */
   leaveTimer: number
+  /** Indeciso: muda de ideia quando a paciência restante cai abaixo deste valor (0–1); null = não muda. */
+  mindChangeAt: number | null
+  changedMind: boolean
 }
 
 /** Ponto da carne que vai para o lanche (queimada vai direto para o lixo). */
 export type PattyQuality = 'raw' | 'perfect' | 'overdone'
 export type PattyStage = PattyQuality | 'burnt'
 
-/** Carne na chapa: segundos de cada lado em contato com a chapa. */
+/** Proteína na chapa: segundos de cada lado em contato com a chapa. */
 export interface GrillPatty {
+  kind: ProteinId
   sides: [number, number]
   /** Lado que está na chapa agora. */
   down: 0 | 1
   flips: number
 }
 
-export type FriesStage = 'cooking' | 'ready' | 'burnt'
-export interface FryBasket {
+/** Proteína pronta no prato, esperando entrar no lanche. */
+export interface HeldProtein {
+  id: ProteinId
+  quality: PattyQuality
+}
+
+export type CookStage = 'cooking' | 'ready' | 'burnt'
+/** Item na fritadeira ou no forno. */
+export interface CookerItem {
+  kind: CookableId
   cook: number
 }
-/** Porção pronta na estufa. */
-export interface FriesPortion {
+/** Item pronto guardado na estufa ou na vitrine. */
+export interface StoredItem {
+  kind: CookableId
   age: number
 }
-export type FriesQuality = 'fresh' | 'stale'
+export type StoredQuality = 'fresh' | 'stale'
+export type Station = 'fryer' | 'oven'
 
 export interface Cup {
+  kind: DrinkKind
   size: CupSize
   /** Quanto já foi servido, em ml. */
   fill: number
@@ -64,22 +111,28 @@ export type DrinkQuality = 'good' | 'low' | 'spilled'
 
 export interface TrayBurger {
   ingredients: IngredientId[]
-  /** Ponto de cada carne, na ordem em que aparecem no lanche. */
+  /** Ponto de cada proteína, na ordem em que aparecem no lanche. */
   patties: PattyQuality[]
 }
-export interface TrayFries {
-  quality: FriesQuality
+export interface TraySide {
+  id: SideId
+  quality: StoredQuality
 }
 export interface TrayDrink {
+  kind: DrinkKind
   size: CupSize
   quality: DrinkQuality
 }
-export interface Tray {
-  burger: TrayBurger | null
-  fries: TrayFries | null
-  drink: TrayDrink | null
+export interface TrayDessert {
+  id: DessertId
 }
-export type TrayItem = keyof Tray
+export interface Tray {
+  burgers: TrayBurger[]
+  sides: TraySide[]
+  drinks: TrayDrink[]
+  desserts: TrayDessert[]
+}
+export type TrayCategory = keyof Tray
 
 export interface ShiftStats {
   served: number
@@ -93,24 +146,30 @@ export interface ShiftStats {
   xpGained: number
   /** Lanches entregues certos, por receita (para o "mais vendido"). */
   soldByRecipe: Record<string, number>
+  /** Influenciadores bem atendidos (aumentam o movimento do dia seguinte). */
+  influencerHappy: number
 }
 
 /** Estado de um turno em andamento (não vai para o save). */
 export interface SessionState {
+  /** Nível do jogador (libera ingredientes, receitas e vagas); sobe durante o dia. */
+  level: number
   /** Estoque do dia: começa igual ao do jogador e é gasto durante o turno. */
   stock: Stock
   /** Movimento do dia (a "previsão"), que multiplica a chegada de clientes. */
   dayMultiplier: number
   slots: (Customer | null)[]
-  /** Lanche sendo montado e o ponto de cada carne nele. */
+  /** Lanche sendo montado e o ponto de cada proteína nele. */
   burger: IngredientId[]
   burgerPatties: PattyQuality[]
   tray: Tray
   grill: (GrillPatty | null)[]
-  /** Carnes prontas esperando no prato. */
-  held: PattyQuality[]
-  fryer: (FryBasket | null)[]
-  warmer: FriesPortion[]
+  /** Proteínas prontas esperando no prato. */
+  held: HeldProtein[]
+  fryer: (CookerItem | null)[]
+  warmer: StoredItem[]
+  oven: (CookerItem | null)[]
+  shelf: StoredItem[]
   cup: Cup | null
   pouring: boolean
   selectedSlot: number | null
@@ -128,6 +187,9 @@ export interface Review {
   stars: number
   text: string
   name: string
+  /** Peso na reputação (o crítico pesa mais); padrão 1. */
+  weight?: number
+  type?: CustomerTypeId
 }
 
 export interface LoanState {
@@ -156,6 +218,8 @@ export interface PlayerCore {
   /** Quanto foi gasto em estoque na preparação do dia atual. */
   todayPurchases: number
   bankrupt: boolean
+  /** Multiplicador de movimento deste dia por causa de influenciadores bem atendidos ontem (1 = nenhum). */
+  dayBoost: number
 }
 
 export interface PlayerState extends PlayerCore {
@@ -170,36 +234,43 @@ export type ServiceNote =
   | 'pattyRaw'
   | 'pattyOverdone'
   | 'pattyPerfect'
-  | 'friesMissing'
-  | 'friesStale'
+  | 'sideMissing'
+  | 'sideWrong'
+  | 'sideStale'
   | 'drinkMissing'
+  | 'drinkWrongKind'
   | 'drinkWrongSize'
   | 'drinkLow'
   | 'drinkSpilled'
+  | 'dessertMissing'
+  | 'dessertWrong'
   | 'fast'
   | 'slow'
 
 export type GameEvent =
   | { type: 'customerArrived'; slot: number; customerId: number }
+  | { type: 'customerChangedMind'; slot: number; customerId: number }
   | { type: 'ingredientAdded'; ingredient: IngredientId }
   | { type: 'burgerDiscarded' }
-  | { type: 'trayPlaced'; item: TrayItem }
-  | { type: 'trayDiscarded'; item: TrayItem }
+  | { type: 'trayPlaced'; category: TrayCategory }
+  | { type: 'trayDiscarded'; category: TrayCategory }
   | { type: 'pattyPlaced'; slot: number }
   | { type: 'pattyFlipped'; slot: number }
   | { type: 'pattyBurnt'; slot: number }
   | { type: 'pattyTaken'; slot: number; quality: PattyQuality }
   | { type: 'pattyTrashed'; slot: number }
-  | { type: 'friesPlaced'; basket: number }
-  | { type: 'friesReady'; basket: number }
-  | { type: 'friesBurnt'; basket: number }
-  | { type: 'friesTaken'; basket: number }
-  | { type: 'friesTrashed'; basket: number }
+  | { type: 'cookPlaced'; station: Station; index: number }
+  | { type: 'cookReady'; station: Station; index: number }
+  | { type: 'cookBurnt'; station: Station; index: number }
+  | { type: 'cookTaken'; station: Station; index: number }
+  | { type: 'cookTrashed'; station: Station; index: number }
   | { type: 'cupSpilled' }
   | {
       type: 'customerServed'
       slot: number
       customerId: number
+      customerType: CustomerTypeId
+      /** Nota do atendimento (1–5). */
       stars: number
       burgerCorrect: boolean
       itemsPaid: number
@@ -211,7 +282,7 @@ export type GameEvent =
       review: Review
     }
   | { type: 'customerLost'; slot: number; customerId: number; review: Review }
-  | { type: 'leveledUp'; level: number }
+  | { type: 'leveledUp'; from: number; level: number; unlocks: UnlockEntry[] }
   | { type: 'shiftEnded' }
 
 export interface StepResult {
