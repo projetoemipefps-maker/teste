@@ -12,5 +12,6 @@ body {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   overscroll-behavior: none;
+  overflow-x: hidden;
 }
 button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
