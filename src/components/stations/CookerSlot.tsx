@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { CookablePile, cookableHeatColor } from '@/art'
-import { COOKABLES, SHELF_CAPACITY, UI_LIMITS, WARMER_CAPACITY, type CookableId } from '@/game/config'
+import { COOKABLES, SHELF_CAPACITY, UI_LIMITS, type CookableId } from '@/game/config'
 import { cookStage, hasStockFor, type CookStage, type Station } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { Button } from '../Button'
@@ -109,9 +109,9 @@ export function CookerSlot({ station, index, kind, size }: Props) {
 }
 
 /** Botão "Tirar"/"Lixo" de um cesto ou forma. */
-export function CookerButton({ station, index }: { station: Station; index: number }) {
+export function CookerButton({ station, index, narrow = false }: { station: Station; index: number; narrow?: boolean }) {
   const item = useGameStore((s) => (station === 'fryer' ? s.session.fryer : s.session.oven)[index] ?? null)
-  const storedFull = useGameStore((s) => (station === 'fryer' ? s.session.warmer.length >= WARMER_CAPACITY : s.session.shelf.length >= SHELF_CAPACITY))
+  const storedFull = useGameStore((s) => (station === 'fryer' ? s.session.warmer.length >= s.session.perks.warmerSize : s.session.shelf.length >= SHELF_CAPACITY))
   const take = useGameStore((s) => s.takeCookable)
   const stage = item ? cookStage(item.kind, item.cook) : null
   return (
@@ -119,7 +119,7 @@ export function CookerButton({ station, index }: { station: Station; index: numb
       variant={stage === 'burnt' ? 'primary' : 'green'}
       disabled={!item || stage === 'cooking' || (stage === 'ready' && storedFull)}
       onClick={() => take(station, index)}
-      className="w-[96px] !rounded-xl !border-[3px] !px-2 !py-1 !text-sm"
+      className={`${narrow ? 'w-[76px]' : 'w-[96px]'} !rounded-xl !border-[3px] !px-2 !py-1 !text-sm`}
       aria-label={`${stage === 'burnt' ? 'Jogar no lixo' : 'Tirar'} ${station === 'fryer' ? `(cesto ${index + 1})` : `(forma ${index + 1})`}`}
     >
       {stage === 'burnt' ? 'Lixo' : 'Tirar'}

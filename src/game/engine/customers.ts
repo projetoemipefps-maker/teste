@@ -133,7 +133,7 @@ export function rollCustomer(
   id: number,
   slot: number,
   others: readonly Customer[],
-  context: { prices: Prices; reputation: number },
+  context: { prices: Prices; reputation: number; patienceBonus?: number },
 ): [Customer, number] {
   const [type, s1] = rollCustomerType(rngState, level)
   const [order, s2] = rollOrder(s1, level, type)
@@ -157,7 +157,8 @@ export function rollCustomer(
     patienceFor(order) *
     type.patienceFactor *
     patienceFactorForReputation(context.reputation) *
-    patienceFactorFromPrice(priceRatio)
+    patienceFactorFromPrice(priceRatio) *
+    (1 + (context.patienceBonus ?? 0))
   return [
     {
       id,

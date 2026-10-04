@@ -1,5 +1,6 @@
 import { CUSTOMER_RULES, ECONOMY, LOAN, STOCK_IDS } from '../config'
 import { ageStock, type SpoilReport } from './stock'
+import { computePerks } from './upgrades'
 import type { PlayerCore, PlayerState, SessionState } from './types'
 
 const coreOf = ({ phase, dayStart, ...core }: PlayerState): PlayerCore => core
@@ -61,12 +62,13 @@ export interface DaySummary {
 /** Fecha o dia: cobra custos fixos e parcela, envelhece o estoque, confere a falência e monta o resumo. */
 export function closeDay(player: PlayerState, session: SessionState): { player: PlayerState; summary: DaySummary } {
   const { stats } = session
-  const fixedCosts = ECONOMY.fixedCosts.map((c) => ({ id: c.id, name: c.name, amount: c.amount }))
+  const perks = computePerks(player)
+  const fixedCosts = ECONOMY.fixedCosts.map((c) => ({ id: c.id, name: c.name, amount: Math.round(c.amount * perks.fixedCostFactor) }))
   const fixedTotal = fixedCosts.reduce((sum, c) => sum + c.amount, 0)
   const loanPayment = player.loan.installmentsLeft > 0 ? player.loan.installment : 0
   const money = player.money - fixedTotal - loanPayment
 
-  const aged = ageStock(session.stock, player.stockAge)
+  const aged = ageStock(session.stock, player.stockAge, perks.spoilBonus)
   const debtDays = money < 0 ? player.debtDays + 1 : 0
   const bankrupt = debtDays >= ECONOMY.bankruptcyDays
   const expenses = player.todayPurchases + fixedTotal + loanPayment

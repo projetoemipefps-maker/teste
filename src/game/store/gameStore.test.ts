@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { SHIFT, DEMAND, ECONOMY, PROGRESSION } from '../config'
+import { SHIFT, DEMAND, ECONOMY, PROGRESSION, UPGRADES, VENUES } from '../config'
 import { order, testCustomer } from '../engine/testing'
 import { useGameStore } from './gameStore'
 
@@ -199,5 +199,85 @@ describe('montagem de referência e livro de receitas', () => {
     state().openRecipeBook()
     state().closeRecipeBook()
     expect(state().screen).toBe('prep')
+  })
+})
+
+describe('loja de melhorias no store', () => {
+  beforeEach(() => {
+    state().newGame()
+  })
+
+  const rich = (level = 50) => useGameStore.setState({ player: { ...state().player, level, money: 1e6 } })
+
+  it('comprar melhoria desconta o dinheiro e vale na cozinha do dia seguinte', () => {
+    rich()
+    const before = state().player.money
+    state().buyUpgrade('grillSlots')
+    expect(state().player.upgrades.grillSlots).toBe(1)
+    expect(state().player.money).toBe(before - UPGRADES.grillSlots.levels[0]!.cost)
+    state().openShop()
+    expect(state().session.grill).toHaveLength(3)
+    expect(state().session.perks.grillSlots).toBe(3)
+  })
+
+  it('sem nível ou sem dinheiro a compra é ignorada', () => {
+    rich(2)
+    state().buyUpgrade('grillSpeed')
+    expect(state().player.upgrades.grillSpeed).toBe(0)
+    useGameStore.setState({ player: { ...state().player, level: 50, money: 1 } })
+    state().buyUpgrade('grillSpeed')
+    expect(state().player.upgrades.grillSpeed).toBe(0)
+    expect(state().player.money).toBe(1)
+  })
+
+  it('decoração comprada fica no save e vira bônus na sessão', () => {
+    rich()
+    state().buyDecor('lighting')
+    expect(state().player.decor.lighting).toBe(1)
+    state().openShop()
+    expect(state().session.perks.patienceBonus).toBeGreaterThan(0)
+  })
+
+  it('expandir leva à fase seguinte e dispara a animação de reforma, que depois termina', () => {
+    useGameStore.setState({ player: { ...state().player, level: 8, money: VENUES.snackbar.cost + 100 } })
+    state().expandVenue()
+    expect(state().player.venue).toBe('snackbar')
+    expect(state().player.money).toBe(100)
+    expect(state().renovation).toEqual({ from: 'stall', to: 'snackbar' })
+    state().finishRenovation()
+    expect(state().renovation).toBeNull()
+  })
+
+  it('expansão sem requisitos não muda nada nem anima', () => {
+    state().expandVenue()
+    expect(state().player.venue).toBe('stall')
+    expect(state().renovation).toBeNull()
+  })
+
+  it('com o dia aberto a loja não vende (só entre um dia e outro)', () => {
+    rich()
+    state().openShop()
+    const before = state().player
+    state().buyUpgrade('grillSpeed')
+    state().buyDecor('floor')
+    expect(state().player).toEqual(before)
+  })
+
+  it('a fase aparece nos custos do resumo do dia', () => {
+    useGameStore.setState({ player: { ...state().player, level: 50, money: 1e6, venue: 'chain' } })
+    state().openShop()
+    runUntilEnd()
+    const fixed = ECONOMY.fixedCosts.reduce((s, c) => s + c.amount, 0)
+    expect(state().summary?.fixedCosts.reduce((s, c) => s + c.amount, 0)).toBeGreaterThan(fixed * 3)
+  })
+
+  it('segundo prato: trocar de prato funciona na sessão do dia', () => {
+    rich()
+    state().buyUpgrade('benchDouble')
+    state().openShop()
+    state().addIngredient('bunBottom')
+    state().swapBench()
+    expect(state().session.burger).toEqual([])
+    expect(state().session.spareBurger?.ingredients).toEqual(['bunBottom'])
   })
 })

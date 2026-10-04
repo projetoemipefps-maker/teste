@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
 import { CheckIcon, Cup, DessertArt, SidePortion } from '@/art'
 import { CUSTOMER_TYPES, DRINK_CONFIG, DRINKS, COOKABLES, DESSERTS } from '@/game/config'
-import { getRecipe, patienceRatio, type Customer, type Tray } from '@/game/engine'
+import { getRecipe, orderSize, patienceRatio, type Customer, type Tray } from '@/game/engine'
 import { matchesRecipe } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { BurgerPicture } from './BurgerPicture'
@@ -138,6 +138,24 @@ export function OrderBubble({ customer, selected }: { customer: Customer; select
         ))}
       </motion.div>
       <span className={`whitespace-nowrap text-center font-display leading-none text-ink ${title.length > 11 ? 'text-[11px]' : 'text-[12.5px]'}`}>{title}</span>
+      <PatienceBar ratio={patienceRatio(customer)} />
+    </div>
+  )
+}
+
+/** Balão compacto (balcão com mais de 3 lugares): o lanche principal, quantos itens ao todo e a paciência. */
+export function OrderBubbleCompact({ customer }: { customer: Customer }) {
+  const recipe = getRecipe(customer.order.burgers[0]!)
+  const total = orderSize(customer.order)
+  return (
+    <div className="flex w-full flex-col items-center gap-1">
+      <div className="relative flex h-[42px] items-end justify-center" title={recipe.name}>
+        <BurgerPicture ingredients={recipe.ingredients} width={36} maxHeight={40} />
+        {total > 1 && (
+          <span className="absolute -right-3 -top-1 rounded-full border-2 border-ink bg-cream px-1 font-display text-[10px] leading-tight text-ink">×{total}</span>
+        )}
+      </div>
+      {customer.type !== 'normal' && <span className={`h-1.5 w-full rounded-full border border-ink ${TYPE_COLOR[customer.type]?.split(' ')[0] ?? ''}`} aria-label={CUSTOMER_TYPES[customer.type].name} />}
       <PatienceBar ratio={patienceRatio(customer)} />
     </div>
   )

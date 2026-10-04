@@ -1,12 +1,16 @@
-import { COOKABLES, SHELF_CAPACITY, TRAY, WARMER_CAPACITY, type CookableId, type SideId } from '../config'
+import { COOKABLES, SHELF_CAPACITY, TRAY, type CookableId, type SideId } from '../config'
 import { hasStockFor, useStockFor } from './stock'
 import type { ActionResult, CookerItem, CookStage, SessionState, Station, StoredItem, StoredQuality } from './types'
 
 /** Onde cada estação guarda o que está cozinhando e o que já está pronto. */
 const KEYS = {
-  fryer: { cooking: 'fryer', stored: 'warmer', capacity: WARMER_CAPACITY },
-  oven: { cooking: 'oven', stored: 'shelf', capacity: SHELF_CAPACITY },
+  fryer: { cooking: 'fryer', stored: 'warmer' },
+  oven: { cooking: 'oven', stored: 'shelf' },
 } as const
+
+/** Quantas porções cabem na estufa (melhoria "Estufa maior") ou na vitrine de brownies. */
+export const storedCapacity = (session: SessionState, station: Station): number =>
+  station === 'fryer' ? session.perks.warmerSize : SHELF_CAPACITY
 
 export function cookStage(kind: CookableId, cook: number): CookStage {
   const c = COOKABLES[kind]
@@ -56,7 +60,7 @@ export function takeCookable(session: SessionState, station: Station, index: num
     cookers[index] = null
     return { session: { ...session, [keys.cooking]: cookers }, events: [{ type: 'cookTrashed', station, index }] }
   }
-  if (session[keys.stored].length >= keys.capacity) return { session, events: [] }
+  if (session[keys.stored].length >= storedCapacity(session, station)) return { session, events: [] }
   cookers[index] = null
   const stored: StoredItem = { kind: item.kind, age: 0 }
   return {

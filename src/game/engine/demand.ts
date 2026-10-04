@@ -2,6 +2,7 @@ import { DEMAND, PROGRESSION, SHIFT } from '../config'
 import { demandFactorFromPrices } from './pricing'
 import { demandFactorForReputation } from './reputation'
 import { shiftProgress } from './clock'
+import { computePerks, effectiveReputation } from './upgrades'
 import type { PlayerState, Prices } from './types'
 
 const HOURS = SHIFT.closeHour - SHIFT.openHour
@@ -53,17 +54,19 @@ export function spawnInterval(
   return Math.min(DEMAND.maxSpawnInterval, Math.max(DEMAND.minSpawnInterval, interval))
 }
 
-/** Movimento do dia que vai para a sessão: previsão × bônus de influenciadores de ontem. */
-export const effectiveDayMultiplier = (player: Pick<PlayerState, 'day' | 'dayBoost'>): number =>
-  dayMultiplier(player.day) * player.dayBoost
+type DemandPlayer = Pick<PlayerState, 'day' | 'dayBoost' | 'upgrades' | 'decor' | 'venue'>
+
+/** Movimento do dia que vai para a sessão: previsão × bônus de influenciadores de ontem × fase e lugares do balcão. */
+export const effectiveDayMultiplier = (player: DemandPlayer): number =>
+  dayMultiplier(player.day) * player.dayBoost * computePerks(player).demandFactor
 
 /** Clientes esperados no dia (estimativa para a tela de preparação). */
-export function expectedCustomers(player: Pick<PlayerState, 'day' | 'reputation' | 'prices' | 'level' | 'dayBoost'>): number {
+export function expectedCustomers(player: DemandPlayer & Pick<PlayerState, 'reputation' | 'prices' | 'level'>): number {
   const meanHourly = DEMAND.hourly.reduce((a, b) => a + b, 0) / DEMAND.hourly.length
   const rate =
     meanHourly *
     effectiveDayMultiplier(player) *
-    demandFactorForReputation(player.reputation) *
+    demandFactorForReputation(effectiveReputation(player.reputation, computePerks(player))) *
     demandFactorFromPrices(player.prices, player.level) *
     levelDemandFactor(player.level)
   return Math.round((SHIFT.durationSeconds / DEMAND.baseSpawnInterval) * rate)

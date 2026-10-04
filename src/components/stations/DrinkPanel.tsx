@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { PointerEvent } from 'react'
 import { CUP_SCALE, Cup, SodaMachine } from '@/art'
 import { CUP_SIZES, DRINKS, DRINK_CONFIG, DRINK_KINDS, TRAY, UI_LIMITS, type CupSize, type DrinkKind } from '@/game/config'
-import { canChooseCup, cupFillRatio, cupQuality, unlockedDrinkKinds } from '@/game/engine'
+import { canChooseCup, cupFillRatio, cupQuality, equipmentTier, unlockedDrinkKinds } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { Button } from '../Button'
 
@@ -38,6 +38,7 @@ function liquidY(size: CupSize, ratio: number): number {
 
 function PourButton({ disabled }: { disabled: boolean }) {
   const pouring = useGameStore((s) => s.session.pouring)
+  const auto = useGameStore((s) => s.session.perks.drinkAuto)
   const setPouring = useGameStore((s) => s.setPouring)
   const start = (e: PointerEvent<HTMLButtonElement>) => {
     if (disabled) return
@@ -64,7 +65,7 @@ function PourButton({ disabled }: { disabled: boolean }) {
       animate={{ y: pouring ? 6 : 0 }}
       transition={{ type: 'spring', stiffness: 600, damping: 30 }}
     >
-      {disabled ? 'Escolha um copo' : pouring ? 'Enchendo…' : 'Segure para encher'}
+      {disabled ? 'Escolha um copo' : pouring ? 'Enchendo…' : auto ? 'Segure: para sozinho' : 'Segure para encher'}
     </motion.button>
   )
 }
@@ -81,6 +82,8 @@ export function DrinkPanel() {
   const kind = kinds.includes(choice) ? choice : 'soda'
   const cfg = DRINK_CONFIG[kind]
   const look = MACHINE_LOOK[cup?.kind ?? kind]
+  const tier = useGameStore((s) => equipmentTier(s.player, 'drinks'))
+  const auto = session.perks.drinkAuto
 
   const ratio = cup ? cupFillRatio(cup) : 0
   const quality = cup && cup.fill > 0 ? cupQuality(cup) : null
@@ -91,7 +94,7 @@ export function DrinkPanel() {
         ? { text: 'No ponto!', cls: 'text-[#9BE06F]' }
         : quality === 'low'
           ? { text: 'Ainda falta…', cls: 'text-mustard-light' }
-          : { text: cup ? 'Segure o botão' : 'Escolha o tamanho', cls: 'text-white' }
+          : { text: cup ? (auto ? 'Segure: eu paro no ponto' : 'Segure o botão') : 'Escolha o tamanho', cls: 'text-white' }
   const surface = cup ? liquidY(cup.size, ratio) : CUP_BOX.top + CUP_BOX.height
   const stock = session.stock[cfg.stock]
 
@@ -117,7 +120,7 @@ export function DrinkPanel() {
       )}
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="relative h-full shrink-0 self-start" style={{ aspectRatio: `${MACHINE.w} / ${MACHINE.h}`, maxHeight: '100%' }}>
-          <SodaMachine className="absolute inset-0 h-full w-full" label={look.label} body={look.body} shade={look.shade} />
+          <SodaMachine className="absolute inset-0 h-full w-full" label={look.label} body={look.body} shade={look.shade} tier={tier} />
           <motion.div
             className="absolute rounded-full"
             style={{ left: pct(98, MACHINE.w), width: pct(4, MACHINE.w), top: pct(NOZZLE_BOTTOM, MACHINE.h), originY: 0, background: STREAM_COLOR[cup?.kind ?? kind] }}

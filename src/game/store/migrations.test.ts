@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { LOAN, MAX_STOCK, PROGRESSION, REPUTATION, STOCK_IDS } from '../config'
-import { createPlayer, defaultPrices, openDay, priceLimits, startingStock, type Review } from '../engine'
+import { DECOR, LOAN, MAX_STOCK, PROGRESSION, REPUTATION, STOCK_IDS, UPGRADES } from '../config'
+import { computePerks, createPlayer, defaultPrices, emptyDecor, emptyUpgrades, openDay, priceLimits, startingStock, type Review } from '../engine'
 import { SAVE_VERSION, defaultSave, migrateSave, sanitizeSave, type Migration } from './migrations'
 
 const review = (i: number): Review => ({ id: `1-${i}`, day: 1, stars: 5, text: 'Muito bom', name: 'Ana' })
 
 describe('save', () => {
-  it('a versão atual é a 3', () => {
-    expect(SAVE_VERSION).toBe(3)
+  it('a versão atual é a 4', () => {
+    expect(SAVE_VERSION).toBe(4)
   })
 
   it('lixo ou vazio vira o save padrão', () => {
@@ -58,6 +58,49 @@ describe('save', () => {
     expect(s.player.prices['drink:soda:large']).toBe(11)
     expect(s.player.prices.fries).toBeUndefined()
     expect(s.player.reviews).toHaveLength(1)
+  })
+
+  it('migra um save v3 para v4: começa na barraquinha, sem melhorias nem decoração', () => {
+    const { upgrades: _u, decor: _d, venue: _v, ...v3 } = { ...createPlayer(), money: 640, level: 5, day: 4 }
+    const s = migrateSave({ hasSave: true, player: v3, settings: { reduceMotion: false } }, 3)
+    expect(s.player).toMatchObject({ money: 640, level: 5, day: 4, venue: 'stall' })
+    expect(s.player.upgrades).toEqual(emptyUpgrades())
+    expect(s.player.decor).toEqual(emptyDecor())
+  })
+
+  it('v3 → v4: quem já tinha espaços de chapa e cestos pelo nível ganha as melhorias equivalentes', () => {
+    const at = (level: number) => migrateSave({ hasSave: true, player: { ...createPlayer(), level } }, 3).player.upgrades
+    expect(at(11)).toMatchObject({ grillSlots: 0, fryerBaskets: 0 })
+    expect(at(12)).toMatchObject({ grillSlots: 1, fryerBaskets: 0 })
+    expect(at(16)).toMatchObject({ grillSlots: 1, fryerBaskets: 1 })
+    expect(at(28)).toMatchObject({ grillSlots: 2, fryerBaskets: 1 })
+    expect(computePerks(migrateSave({ hasSave: true, player: { ...createPlayer(), level: 28 } }, 3).player)).toMatchObject({ grillSlots: 4, fryerBaskets: 3 })
+  })
+
+  it('um save v4 com melhorias, decoração e fase passa intacto', () => {
+    const player = { ...createPlayer(), upgrades: { ...emptyUpgrades(), grillSlots: 3, fridgeCapacity: 2 }, decor: { ...emptyDecor(), neon: 2 }, venue: 'craft' as const }
+    const s = migrateSave({ hasSave: true, player }, 4)
+    expect(s.player.upgrades).toEqual(player.upgrades)
+    expect(s.player.decor).toEqual(player.decor)
+    expect(s.player.venue).toBe('craft')
+  })
+
+  it('melhorias, decoração e fase inválidas são corrigidas', () => {
+    const s = sanitizeSave({ player: { upgrades: { grillSlots: 99, grillSpeed: -2, fantasma: 5, counterSeats: 'x' }, decor: { floor: 9, neon: 1.8, ghost: 1 }, venue: 'castelo' } })
+    expect(s.player.upgrades.grillSlots).toBe(UPGRADES.grillSlots.levels.length)
+    expect(s.player.upgrades.grillSpeed).toBe(0)
+    expect(s.player.upgrades.counterSeats).toBe(0)
+    expect(s.player.upgrades).not.toHaveProperty('fantasma')
+    expect(s.player.decor.floor).toBe(DECOR.floor.tiers.length)
+    expect(s.player.decor.neon).toBe(1)
+    expect(s.player.venue).toBe('stall')
+  })
+
+  it('o limite do estoque acompanha a geladeira do jogador', () => {
+    const big = sanitizeSave({ player: { upgrades: { fridgeCapacity: 4 }, stock: { bun: 5000 } } })
+    expect(big.player.stock.bun).toBe(UPGRADES.fridgeCapacity.levels[3]!.value)
+    const small = sanitizeSave({ player: { stock: { bun: 5000 } } })
+    expect(small.player.stock.bun).toBe(MAX_STOCK)
   })
 
   it('um save v3 válido passa intacto', () => {

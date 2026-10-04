@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { GRILL, INGREDIENTS } from '../config'
 import { addPattyToBurger } from './session'
 import { cookPatty, createPatty, flipPatty, grillTimes, pattyHint, pattyStage, placeRawPatty, takePatty } from './grill'
-import { testSession } from './testing'
+import { testPerks, testSession } from './testing'
 import { createSession } from './session'
 import { filledStock } from './stock'
 import type { GrillPatty, SessionState } from './types'
@@ -17,11 +17,10 @@ const withPatty = (p: GrillPatty, slot = 0): SessionState => {
 const both = (a: number, b: number, kind: GrillPatty['kind'] = 'patty'): GrillPatty => ({ kind, sides: [a, b], down: 0, flips: 1 })
 
 describe('chapa', () => {
-  it('começa com 2 espaços vazios e libera mais com o nível', () => {
+  it('começa com 2 espaços vazios; mais espaços vêm da loja (até 6), não do nível', () => {
     expect(createSession(1).grill).toEqual([null, null])
-    expect(createSession(1, { level: 11 }).grill).toHaveLength(2)
-    expect(createSession(1, { level: 12 }).grill).toHaveLength(3)
-    expect(createSession(1, { level: 28 }).grill).toHaveLength(4)
+    expect(createSession(1, { level: 50 }).grill).toHaveLength(2)
+    expect(createSession(1, { perks: testPerks({ grillSlots: 6 }) }).grill).toHaveLength(6)
   })
 
   it('coloca carne crua num espaço vazio, mas não num ocupado', () => {

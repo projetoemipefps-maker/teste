@@ -1,31 +1,69 @@
-import { Awning } from '@/art'
-import { CUSTOMERS } from '@/game/config'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { DecorArt, SceneFloor, SceneWall } from '@/art'
+import { useGameStore } from '@/game/store'
 import { CustomerSlot } from './CustomerSlot'
+import { COUNTER_HEIGHT, COUNTER_TOP_HEIGHT, Canopy, CounterTop, FacadeStrip } from './scene/Facade'
 
-/** Balcão da hamburgueria: toldo, clientes e a bancada de madeira na frente. */
+const FLOOR_HEIGHT = 50
+/** Margem lateral da fileira de clientes (px). */
+const SIDE_PADDING = 8
+
+/** Largura do elemento (px de projeto), acompanhando redimensionamentos. */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  const [width, setWidth] = useState(390)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => setWidth(el.clientWidth || 390)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return [ref, width] as const
+}
+
+/**
+ * Balcão da hamburgueria: a fachada com a decoração, a parede e o piso da fase, os clientes
+ * (de 3 a 6 lugares, conforme as melhorias) e o tampo do balcão na frente.
+ */
 export function Counter() {
+  const seats = useGameStore((s) => s.session.slots.length)
+  const venue = useGameStore((s) => s.player.venue)
+  const decor = useGameStore((s) => s.player.decor)
+  const [ref, width] = useWidth<HTMLElement>()
+  const slotWidth = (width - SIDE_PADDING * 2) / seats
+
   return (
-    <section
-      className="relative h-[244px] flex-none overflow-hidden border-b-4 border-ink"
-      style={{
-        background:
-          'linear-gradient(rgba(59,31,14,.07) 2px, transparent 2px) 0 0/44px 44px, linear-gradient(90deg, rgba(59,31,14,.07) 2px, transparent 2px) 0 0/44px 44px, #FFF3DC',
-      }}
-    >
-      <Awning className="absolute inset-x-0 top-0 z-10 h-[40px] w-full drop-shadow-[0_4px_0_rgba(59,31,14,.25)]" />
-      <div
-        className="absolute inset-x-0 top-[6px] bottom-[34px] z-[15] grid px-2"
-        style={{ gridTemplateColumns: `repeat(${CUSTOMERS.maxSlots}, minmax(0, 1fr))` }}
-      >
-        {Array.from({ length: CUSTOMERS.maxSlots }, (_, i) => (
-          <CustomerSlot key={i} slot={i} />
-        ))}
-      </div>
-      {/* tampo do balcão */}
-      <div className="absolute inset-x-0 bottom-0 z-20 h-[34px] border-t-4 border-ink bg-toast-light">
-        <div className="h-2.5 bg-[#E3A86A]" />
-        <div className="h-full bg-toast shadow-[inset_0_6px_0_rgba(0,0,0,.12)]" />
-      </div>
-    </section>
+    <>
+      <FacadeStrip />
+      <section ref={ref} className="relative flex-none overflow-hidden border-b-4 border-ink" style={{ height: COUNTER_HEIGHT }}>
+        <SceneWall venue={venue} tier={decor.wall} className="absolute inset-0 z-0" />
+        <div className="absolute inset-x-0 z-[1] border-t-4 border-ink" style={{ bottom: COUNTER_TOP_HEIGHT, height: FLOOR_HEIGHT }}>
+          <SceneFloor venue={venue} tier={decor.floor} className="absolute inset-0" />
+        </div>
+        {decor.tables > 0 &&
+          ['33%', '67%'].map((left) => (
+            <DecorArt
+              key={left}
+              id="tables"
+              tier={decor.tables}
+              className="absolute z-[2] h-[48px] w-[58px] -translate-x-1/2"
+              style={{ left, bottom: COUNTER_TOP_HEIGHT + 2 }}
+            />
+          ))}
+        <Canopy venue={venue} />
+        <div
+          className="absolute inset-x-0 top-[6px] z-[15] grid"
+          style={{ bottom: COUNTER_TOP_HEIGHT, paddingInline: SIDE_PADDING, gridTemplateColumns: `repeat(${seats}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: seats }, (_, i) => (
+            <CustomerSlot key={i} slot={i} seats={seats} slotWidth={slotWidth} />
+          ))}
+        </div>
+        <CounterTop />
+      </section>
+    </>
   )
 }

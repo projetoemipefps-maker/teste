@@ -1,17 +1,13 @@
-
 import { unlockGifts } from './stock'
-import { fryerBasketCount, grillSlotCount, unlocksBetween, type UnlockEntry } from './unlocks'
+import { ovenSlotCount, unlocksBetween, type UnlockEntry } from './unlocks'
 import type { SessionState } from './types'
 
-
-/** Sobe o nível da sessão: libera vagas na chapa/fritadeira e dá estoque de presente dos itens novos. */
+/** Sobe o nível da sessão: libera as vagas do forno e dá estoque de presente dos itens novos. */
 export function applyLevelUp(session: SessionState, from: number, to: number): { session: SessionState; unlocks: UnlockEntry[] } {
-  const grill = [...session.grill]
-  while (grill.length < grillSlotCount(to)) grill.push(null)
-  const fryer = [...session.fryer]
-  while (fryer.length < fryerBasketCount(to)) fryer.push(null)
+  const oven = [...session.oven]
+  while (oven.length < ovenSlotCount(to)) oven.push(null)
   return {
-    session: { ...session, level: to, grill, fryer, stock: unlockGifts(session.stock, from, to) },
+    session: { ...session, level: to, oven, stock: unlockGifts(session.stock, from, to) },
     unlocks: unlocksBetween(from, to),
   }
 }

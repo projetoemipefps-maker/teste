@@ -1,10 +1,10 @@
 import { INK } from '../palette'
 
 /** Máquina de refrigerante: o copo fica no vão escuro, sob o bico (posicionado por cima, em HTML). */
-export function SodaMachine({ className, label = 'REFRI', body = '#E63B2E', shade = '#7E1F18' }: { className?: string; label?: string; body?: string; shade?: string }) {
+export function SodaMachine({ className, label = 'REFRI', body = '#E63B2E', shade = '#7E1F18', tier = 0 }: { className?: string; label?: string; body?: string; shade?: string; tier?: number }) {
   return (
     <svg viewBox="0 0 200 300" className={className} aria-hidden>
-      <rect x="6" y="246" width="188" height="48" rx="10" fill="#8B8B93" stroke={INK} strokeWidth="4" />
+      <rect x="6" y="246" width="188" height="48" rx="10" fill={['#8B8B93', '#A9AEB8', '#C9D1DC', '#F5B82E'][Math.min(3, tier)]} stroke={INK} strokeWidth="4" />
       <g stroke="#5D5D66" strokeWidth="3">
         {[26, 46, 66, 86, 106, 126, 146, 166].map((x) => (
           <path key={x} d={`M${x} 256 V284`} />
@@ -23,6 +23,13 @@ export function SodaMachine({ className, label = 'REFRI', body = '#E63B2E', shad
       <circle cx="154" cy="126" r="9" fill="#5FB84A" stroke={INK} strokeWidth="3" />
       <rect x="34" y="226" width="132" height="6" rx="3" fill="#fff" opacity=".15" />
       <path d="M26 22 Q26 18 34 18" stroke="#fff" strokeWidth="4" strokeLinecap="round" opacity=".55" fill="none" />
+      {tier >= 1 && <rect x="14" y="236" width="172" height="7" fill={tier >= 3 ? '#F5B82E' : '#D6DAE2'} stroke={INK} strokeWidth="2.5" />}
+      {tier >= 2 && (
+        <g>
+          <rect x="112" y="20" width="58" height="22" rx="6" fill="#1F2D44" stroke={INK} strokeWidth="3" />
+          <text x="141" y="36" textAnchor="middle" fontFamily="Lilita One" fontSize="14" fill="#7FFFB2">AUTO</text>
+        </g>
+      )}
     </svg>
   )
 }

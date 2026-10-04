@@ -1,7 +1,8 @@
 import { CUSTOMERS, INGREDIENTS, TRAY, type IngredientId } from '../config'
 import { addIngredient, canAddIngredient, closingFor, isClosed } from './burger'
 import { hasStock, startingStock, useStock } from './stock'
-import { fryerBasketCount, grillSlotCount, isIngredientUnlocked, ovenSlotCount } from './unlocks'
+import { isIngredientUnlocked, ovenSlotCount } from './unlocks'
+import { basePerks, type Perks } from './upgrades'
 import type { ActionResult, SessionState, Stock, TrayCategory } from './types'
 
 export interface SessionOptions {
@@ -11,21 +12,26 @@ export interface SessionOptions {
   dayMultiplier?: number
   /** Nível do jogador (padrão: 1). */
   level?: number
+  /** Efeitos das melhorias, da decoração e da fase (padrão: nada comprado). */
+  perks?: Perks
 }
 
 export function createSession(seed: number, options: SessionOptions = {}): SessionState {
   const level = options.level ?? 1
+  const perks = options.perks ?? basePerks()
   return {
     level,
+    perks,
     stock: options.stock ?? startingStock(level),
     dayMultiplier: options.dayMultiplier ?? 1,
-    slots: Array.from({ length: CUSTOMERS.maxSlots }, () => null),
+    slots: Array.from({ length: perks.seats }, () => null),
     burger: [],
     burgerPatties: [],
+    spareBurger: null,
     tray: { burgers: [], sides: [], drinks: [], desserts: [] },
-    grill: Array.from({ length: grillSlotCount(level) }, () => null),
+    grill: Array.from({ length: perks.grillSlots }, () => null),
     held: [],
-    fryer: Array.from({ length: fryerBasketCount(level) }, () => null),
+    fryer: Array.from({ length: perks.fryerBaskets }, () => null),
     warmer: [],
     oven: Array.from({ length: ovenSlotCount(level) }, () => null),
     shelf: [],
@@ -89,24 +95,55 @@ export function addPattyToBurger(session: SessionState, heldIndex: number): Acti
   }
 }
 
-/** Passa o lanche fechado do prato para a bandeja. */
+/** Passa o lanche fechado para a bandeja: o do prato da frente ou, se ele não estiver fechado, o do segundo prato. */
 export function sendBurgerToTray(session: SessionState): ActionResult {
-  if (session.ended || !isClosed(session.burger) || session.tray.burgers.length >= TRAY.burgers) return { session, events: [] }
-  return {
-    session: {
-      ...session,
-      burger: [],
-      burgerPatties: [],
-      tray: { ...session.tray, burgers: [...session.tray.burgers, { ingredients: session.burger, patties: session.burgerPatties }] },
-    },
-    events: [{ type: 'trayPlaced', category: 'burgers' }],
+  if (session.ended || session.tray.burgers.length >= TRAY.burgers) return { session, events: [] }
+  const placed = { events: [{ type: 'trayPlaced', category: 'burgers' }] as ActionResult['events'] }
+  if (isClosed(session.burger)) {
+    return {
+      session: {
+        ...session,
+        burger: [],
+        burgerPatties: [],
+        tray: { ...session.tray, burgers: [...session.tray.burgers, { ingredients: session.burger, patties: session.burgerPatties }] },
+      },
+      ...placed,
+    }
   }
+  const spare = session.spareBurger
+  if (spare && isClosed(spare.ingredients)) {
+    return {
+      session: {
+        ...session,
+        spareBurger: null,
+        tray: { ...session.tray, burgers: [...session.tray.burgers, { ingredients: spare.ingredients, patties: spare.patties }] },
+      },
+      ...placed,
+    }
+  }
+  return { session, events: [] }
 }
 
 /** Joga fora o lanche que está sendo montado (as proteínas usadas se perdem). */
 export function discardBurger(session: SessionState): ActionResult {
   if (session.burger.length === 0) return { session, events: [] }
   return { session: { ...session, burger: [], burgerPatties: [] }, events: [{ type: 'burgerDiscarded' }] }
+}
+
+/** Com o segundo prato, troca o lanche da frente pelo guardado (o prato vazio também vale: serve para guardar o lanche). */
+export function swapBench(session: SessionState): ActionResult {
+  if (session.ended || session.perks.benches < 2) return { session, events: [] }
+  const spare = session.spareBurger
+  if (session.burger.length === 0 && !spare) return { session, events: [] }
+  return {
+    session: {
+      ...session,
+      burger: spare ? spare.ingredients : [],
+      burgerPatties: spare ? spare.patties : [],
+      spareBurger: session.burger.length > 0 ? { ingredients: session.burger, patties: session.burgerPatties } : null,
+    },
+    events: [{ type: 'benchSwapped' }],
+  }
 }
 
 /** Tira o último item colocado de uma categoria da bandeja. */

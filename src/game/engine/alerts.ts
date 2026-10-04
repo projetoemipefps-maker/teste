@@ -9,8 +9,8 @@ export function grillAlert(session: SessionState): StationAlert {
   let alert: StationAlert = 'none'
   for (const p of session.grill) {
     if (!p) continue
-    const hint = pattyHint(p)
-    if (hint === 'flip' || hint === 'overdone' || hint === 'burnt') return 'warn'
+    const hint = pattyHint(p, session.perks)
+    if (hint === 'flip' || hint === 'alarm' || hint === 'overdone' || hint === 'burnt') return 'warn'
     if (hint === 'take') alert = 'ready'
   }
   return alert

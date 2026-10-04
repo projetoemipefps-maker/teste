@@ -16,6 +16,7 @@ import {
   type StockId,
 } from '../config'
 import { isStockUnlocked } from './unlocks'
+import { computePerks } from './upgrades'
 import type { PlayerState, Stock, StockAges } from './types'
 
 /** Estoque de quem começa no `level`: o inicial dos itens do nível 1 e um presente dos demais já liberados. */
@@ -69,14 +70,17 @@ export function cartCost(cart: Cart): number {
   return STOCK_IDS.reduce((sum, id) => sum + (cart[id] ?? 0) * STOCK_ITEMS[id].unitCost, 0)
 }
 
+/** Quanto cabe no estoque de cada item (a geladeira melhorada aumenta). */
+export const stockCapOf = (player: Pick<PlayerState, 'upgrades' | 'decor' | 'venue'>): number => computePerks(player).stockCap
+
 /** Quanto ainda cabe no estoque do item. */
-export const roomFor = (stock: Stock, id: StockId): number => Math.max(0, MAX_STOCK - stock[id])
+export const roomFor = (stock: Stock, id: StockId, cap: number = MAX_STOCK): number => Math.max(0, cap - stock[id])
 
 /** Ajusta o carrinho: sem negativos, sem passar da capacidade do estoque. */
-export function clampCart(stock: Stock, cart: Cart): Cart {
+export function clampCart(stock: Stock, cart: Cart, cap: number = MAX_STOCK): Cart {
   const out: Cart = {}
   for (const id of STOCK_IDS) {
-    const qty = Math.min(Math.max(0, Math.floor(cart[id] ?? 0)), roomFor(stock, id))
+    const qty = Math.min(Math.max(0, Math.floor(cart[id] ?? 0)), roomFor(stock, id, cap))
     if (qty > 0) out[id] = qty
   }
   return out
@@ -87,7 +91,7 @@ export function clampCart(stock: Stock, cart: Cart): Cart {
  * Itens frescos novos "rejuvenescem" a idade média do estoque.
  */
 export function purchaseStock(player: PlayerState, rawCart: Cart): PlayerState {
-  const cart = clampCart(player.stock, rawCart)
+  const cart = clampCart(player.stock, rawCart, stockCapOf(player))
   const cost = cartCost(cart)
   if (cost <= 0 || cost > player.money) return player
   const stock = { ...player.stock }
@@ -120,13 +124,18 @@ export interface SpoilReport {
 }
 
 /** Passa um dia: o estoque fresco envelhece e, ao chegar no limite, estraga todo. */
-export function ageStock(stock: Stock, ages: StockAges): { stock: Stock; stockAge: StockAges; spoiled: SpoilReport[] } {
+export function ageStock(
+  stock: Stock,
+  ages: StockAges,
+  spoilBonus = 0,
+): { stock: Stock; stockAge: StockAges; spoiled: SpoilReport[] } {
   const nextStock = { ...stock }
   const nextAges: StockAges = { ...ages }
   const spoiled: SpoilReport[] = []
   for (const id of STOCK_IDS) {
-    const limit = STOCK_ITEMS[id].spoilDays
-    if (limit === undefined) continue
+    const base = STOCK_ITEMS[id].spoilDays
+    if (base === undefined) continue
+    const limit = base + spoilBonus
     if (nextStock[id] <= 0) {
       nextAges[id] = 0
       continue
@@ -144,8 +153,8 @@ export function ageStock(stock: Stock, ages: StockAges): { stock: Stock; stockAg
 }
 
 /** Dias até estragar (0 = estraga no fim de hoje); `null` se não estraga ou não há estoque. */
-export function daysUntilSpoil(id: StockId, stock: Stock, ages: StockAges): number | null {
-  const limit = STOCK_ITEMS[id].spoilDays
-  if (limit === undefined || stock[id] <= 0) return null
-  return Math.max(0, limit - Math.floor(ages[id] ?? 0) - 1)
+export function daysUntilSpoil(id: StockId, stock: Stock, ages: StockAges, spoilBonus = 0): number | null {
+  const base = STOCK_ITEMS[id].spoilDays
+  if (base === undefined || stock[id] <= 0) return null
+  return Math.max(0, base + spoilBonus - Math.floor(ages[id] ?? 0) - 1)
 }

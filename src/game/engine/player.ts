@@ -1,6 +1,7 @@
-import { ECONOMY, PROGRESSION } from '../config'
+import { ECONOMY, FIRST_VENUE, PROGRESSION } from '../config'
 import { defaultPrices } from './pricing'
 import { startingStock } from './stock'
+import { emptyDecor, emptyUpgrades } from './upgrades'
 import type { PlayerState } from './types'
 
 /** Jogador novo: primeiro dia, caixa inicial e um estoque para começar. */
@@ -20,6 +21,9 @@ export function createPlayer(): PlayerState {
     todayPurchases: 0,
     bankrupt: false,
     dayBoost: 1,
+    upgrades: emptyUpgrades(),
+    decor: emptyDecor(),
+    venue: FIRST_VENUE,
     phase: 'prep',
     dayStart: null,
   }

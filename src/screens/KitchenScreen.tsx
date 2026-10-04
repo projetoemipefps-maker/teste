@@ -83,7 +83,7 @@ function ReviewsModal() {
 }
 
 /** Altura de projeto da cozinha; em telas mais baixas ela é reduzida proporcionalmente. */
-const DESIGN_HEIGHT = 780
+const DESIGN_HEIGHT = 820
 const MIN_SCALE = 0.68
 
 function useKitchenScale(): number {

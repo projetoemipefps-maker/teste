@@ -196,3 +196,17 @@ export function StarBurst(props: P) {
     </svg>
   )
 }
+
+/** Lojinha com toldo e chave inglesa (loja de melhorias). */
+export function ShopIcon(props: P) {
+  return (
+    <svg viewBox="0 0 40 36" {...props}>
+      <rect x="6" y="14" width="28" height="18" fill="#FFE2A8" stroke={INK} strokeWidth="2.8" />
+      <path d="M3 15 L6 5 H34 L37 15Z" fill="#FFF3DC" stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+      <path d="M8 5 L7 15 M15 5 L14 15 M22 5 L22 15 M29 5 L30 15" stroke="#E63B2E" strokeWidth="4" />
+      <path d="M3 15 L6 5 H34 L37 15" fill="none" stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+      <rect x="10" y="20" width="9" height="12" rx="1.5" fill="#9A5B2B" stroke={INK} strokeWidth="2" />
+      <rect x="23" y="20" width="8" height="7" rx="1.5" fill="#BEE3F8" stroke={INK} strokeWidth="2" />
+    </svg>
+  )
+}

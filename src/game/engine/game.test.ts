@@ -288,12 +288,14 @@ describe('XP e subida de nível ao entregar', () => {
     expect(up.type === 'leveledUp' && up.level - up.from).toBeGreaterThan(1)
   })
 
-  it('a chapa e a fritadeira ganham vagas quando o nível libera', () => {
+  it('subir de nível libera o forno, mas não mexe na chapa nem na fritadeira (esses vêm da loja)', () => {
     const base = withCustomer(order('simples'), 1, 'normal', { level: 1 })
     const prepared: SessionState = { ...base, level: 11 }
-    const r = perfectServe(player({ level: 11, xp: xpToNext(11) - 1 }), { ...prepared, grill: [null, null], fryer: [null, null] })
+    const r = perfectServe(player({ level: 11, xp: xpToNext(11) - 1 }), { ...prepared, grill: [null, null], fryer: [null, null], oven: [] })
     expect(r.session.level).toBe(12)
-    expect(r.session.grill).toHaveLength(3)
+    expect(r.session.oven).toHaveLength(2)
+    expect(r.session.grill).toHaveLength(2)
+    expect(r.session.fryer).toHaveLength(2)
   })
 
   it('o tipo de cliente multiplica o XP (apressado dá mais)', () => {

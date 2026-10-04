@@ -2,16 +2,20 @@ import type {
   CookableId,
   CupSize,
   CustomerTypeId,
+  DecorId,
   DessertId,
   DrinkKind,
   IngredientId,
   ProteinId,
   SideId,
   StockId,
+  UpgradeId,
+  VenueId,
 } from '../config'
 import type { UnlockEntry } from './unlocks'
+import type { DecorLevels, Perks, UpgradeLevels } from './upgrades'
 
-export type { CupSize, CustomerTypeId, DessertId, DrinkKind, ProteinId, SideId, StockId, CookableId }
+export type { CupSize, CustomerTypeId, DecorId, DessertId, DrinkKind, ProteinId, SideId, StockId, CookableId, UpgradeId, VenueId }
 
 /** Quantidade de cada item do estoque. */
 export type Stock = Record<StockId, number>
@@ -150,10 +154,18 @@ export interface ShiftStats {
   influencerHappy: number
 }
 
+/** Lanche guardado no segundo prato da bancada (só com a melhoria "Segundo prato"). */
+export interface SpareBurger {
+  ingredients: IngredientId[]
+  patties: PattyQuality[]
+}
+
 /** Estado de um turno em andamento (não vai para o save). */
 export interface SessionState {
   /** Nível do jogador (libera ingredientes, receitas e vagas); sobe durante o dia. */
   level: number
+  /** Efeitos das melhorias, da decoração e da fase da hamburgueria, fixados na abertura do dia. */
+  perks: Perks
   /** Estoque do dia: começa igual ao do jogador e é gasto durante o turno. */
   stock: Stock
   /** Movimento do dia (a "previsão"), que multiplica a chegada de clientes. */
@@ -162,6 +174,8 @@ export interface SessionState {
   /** Lanche sendo montado e o ponto de cada proteína nele. */
   burger: IngredientId[]
   burgerPatties: PattyQuality[]
+  /** Segundo prato da bancada (null = vazio ou sem a melhoria). */
+  spareBurger: SpareBurger | null
   tray: Tray
   grill: (GrillPatty | null)[]
   /** Proteínas prontas esperando no prato. */
@@ -220,6 +234,12 @@ export interface PlayerCore {
   bankrupt: boolean
   /** Multiplicador de movimento deste dia por causa de influenciadores bem atendidos ontem (1 = nenhum). */
   dayBoost: number
+  /** Nível comprado de cada melhoria de equipamento. */
+  upgrades: UpgradeLevels
+  /** Visual comprado de cada decoração (0 = nenhum). */
+  decor: DecorLevels
+  /** Fase da hamburgueria. */
+  venue: VenueId
 }
 
 export interface PlayerState extends PlayerCore {
@@ -257,6 +277,8 @@ export type GameEvent =
   | { type: 'pattyPlaced'; slot: number }
   | { type: 'pattyFlipped'; slot: number }
   | { type: 'pattyBurnt'; slot: number }
+  | { type: 'pattyAlarm'; slot: number }
+  | { type: 'benchSwapped' }
   | { type: 'pattyTaken'; slot: number; quality: PattyQuality }
   | { type: 'pattyTrashed'; slot: number }
   | { type: 'cookPlaced'; station: Station; index: number }

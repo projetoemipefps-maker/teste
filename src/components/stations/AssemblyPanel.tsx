@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plate, TrashIcon } from '@/art'
+import { FlipIcon, Plate, TrashIcon } from '@/art'
 import { INGREDIENTS, INGREDIENT_IDS, TRAY_CATEGORIES, type IngredientId } from '@/game/config'
-import { canAddIngredient, closingIngredient, isIngredientUnlocked } from '@/game/engine'
+import type { PattyQuality } from '@/game/engine'
+import { canAddIngredient, closingIngredient, equipmentTier, isIngredientUnlocked } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { BurgerPicture } from '../BurgerPicture'
 import { Button } from '../Button'
@@ -19,6 +20,36 @@ function itemsFor(category: CategoryId, level: number, closing: IngredientId | n
   return INGREDIENT_IDS.filter((id) => INGREDIENTS[id].category === category && INGREDIENTS[id].role === 'topping' && isIngredientUnlocked(id, level))
 }
 
+/** Segundo prato da bancada: guarda um lanche pela metade; tocar troca com o prato da frente. */
+function SparePlate({ burger, patties, canSwap, onSwap, tier }: { burger: IngredientId[] | null; patties: PattyQuality[]; canSwap: boolean; onSwap: () => void; tier: number }) {
+  const filled = burger !== null && burger.length > 0
+  return (
+    <button
+      type="button"
+      onClick={onSwap}
+      disabled={!canSwap}
+      aria-label={filled ? 'Trocar para o segundo prato' : 'Guardar o lanche no segundo prato'}
+      className={`relative flex h-[70px] w-full flex-col items-center justify-end rounded-xl border-4 px-0.5 pb-0.5 ${
+        filled ? 'border-ink bg-cream' : 'border-dashed border-ink/45 bg-black/10'
+      } ${canSwap ? '' : 'opacity-60'}`}
+      style={{ boxShadow: filled ? '0 4px 0 #3B1F0E' : undefined }}
+      data-spare-plate
+    >
+      {filled ? (
+        <div className="relative z-10 mb-[3px]">
+          <BurgerPicture ingredients={burger!} patties={patties} width={42} maxHeight={40} />
+        </div>
+      ) : (
+        <span className="mb-4 px-1 text-center text-[10px] font-bold leading-tight text-ink/60">Prato 2 vazio</span>
+      )}
+      <Plate tier={tier} className="absolute bottom-4 w-[88%]" />
+      <span className="relative z-10 flex items-center gap-0.5 font-display text-[10px] leading-none text-ink">
+        <FlipIcon className="h-3 w-3" /> Trocar
+      </span>
+    </button>
+  )
+}
+
 export function AssemblyPanel() {
   const burger = useGameStore((s) => s.session.burger)
   const patties = useGameStore((s) => s.session.burgerPatties)
@@ -26,6 +57,10 @@ export function AssemblyPanel() {
   const level = useGameStore((s) => s.session.level)
   const closing = useGameStore((s) => closingIngredient(s.session))
   const discard = useGameStore((s) => s.discard)
+  const benches = useGameStore((s) => s.session.perks.benches)
+  const spare = useGameStore((s) => s.session.spareBurger)
+  const swapBench = useGameStore((s) => s.swapBench)
+  const tier = useGameStore((s) => equipmentTier(s.player, 'bench'))
   const addHeldPatty = useGameStore((s) => s.addHeldPatty)
   const canPickPatty = held.some((h) => canAddIngredient(burger, h.id))
 
@@ -44,21 +79,24 @@ export function AssemblyPanel() {
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="relative z-10 grid min-h-[130px] flex-1 grid-cols-[76px_1fr_90px] items-end gap-1.5">
-        <Button
-          variant="brown"
-          onClick={discard}
-          disabled={burger.length === 0}
-          className="!flex-col !gap-0.5 !rounded-xl !px-0.5 !py-2 !text-xs"
-          aria-label="Descartar lanche"
-        >
-          <TrashIcon className="h-6 w-6" />
-          <span>Descartar</span>
-        </Button>
+        <div className="flex h-full flex-col justify-end gap-1.5">
+          {benches >= 2 && <SparePlate burger={spare?.ingredients ?? null} patties={spare?.patties ?? []} canSwap={burger.length > 0 || spare !== null} onSwap={swapBench} tier={tier} />}
+          <Button
+            variant="brown"
+            onClick={discard}
+            disabled={burger.length === 0}
+            className="!flex-col !gap-0.5 !rounded-xl !px-0.5 !py-2 !text-xs"
+            aria-label="Descartar lanche"
+          >
+            <TrashIcon className="h-6 w-6" />
+            <span>Descartar</span>
+          </Button>
+        </div>
         <div className="relative flex h-full min-w-0 flex-col items-center justify-end" data-burger>
           <div className="relative z-10 mb-[10px]">
             <BurgerPicture ingredients={burger} patties={patties} width={108} animated />
           </div>
-          <Plate className="absolute bottom-0 w-full max-w-[190px]" />
+          <Plate tier={tier} className="absolute bottom-0 w-full max-w-[190px]" />
         </div>
         <div className="flex justify-center self-end pb-1">
           <HeldPlate held={held} onPick={addHeldPatty} canPick={canPickPatty} />

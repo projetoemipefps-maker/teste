@@ -4,7 +4,7 @@ import { cookStage, placeCookable, storedQuality, storedToTray, takeCookable } f
 import { createSession } from './session'
 import { filledStock } from './stock'
 import { step } from './tick'
-import { testPlayer, testSession } from './testing'
+import { testPerks, testPlayer, testSession } from './testing'
 import type { SessionState, Station } from './types'
 
 const player = () => testPlayer()
@@ -38,10 +38,10 @@ describe('fritadeira e forno', () => {
     for (const c of Object.values(COOKABLES)) expect(c.burntSeconds - c.readySeconds, c.name).toBeGreaterThanOrEqual(3)
   })
 
-  it('começa com 2 cestos, libera o 3º com o nível e o forno aparece com os brownies', () => {
+  it('começa com 2 cestos (mais cestos vêm da loja) e o forno aparece com os brownies, pelo nível', () => {
     expect(createSession(1).fryer).toHaveLength(2)
-    expect(createSession(1, { level: 15 }).fryer).toHaveLength(2)
-    expect(createSession(1, { level: 16 }).fryer).toHaveLength(3)
+    expect(createSession(1, { level: 50 }).fryer).toHaveLength(2)
+    expect(createSession(1, { perks: testPerks({ fryerBaskets: 4 }) }).fryer).toHaveLength(4)
     expect(createSession(1, { level: 11 }).oven).toHaveLength(0)
     expect(createSession(1, { level: 12 }).oven).toHaveLength(2)
   })

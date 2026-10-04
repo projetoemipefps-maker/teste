@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Cup, CustomerArt, DessertArt, IngredientArt, SidePortion, TabFriesIcon, TabGrillIcon } from '@/art'
+import { Cup, CustomerArt, DessertArt, IngredientArt, ShopIcon, SidePortion } from '@/art'
 import { INGREDIENTS, RECIPES, type CupSize, type IngredientId } from "@/game/config"
 import type { CustomerTypeId, DessertId, DrinkKind, SideId, UnlockEntry, UnlockKind } from '@/game/engine'
 import { BurgerPicture } from './BurgerPicture'
@@ -11,7 +11,7 @@ const CONFETTI_COLORS = ['#E63B2E', '#F5B82E', '#5FB84A', '#3E86D6', '#E86FA0', 
 /** Valores estáveis por índice (o confete não "pula" a cada renderização). */
 const pseudo = (i: number, salt: number) => ((Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453) % 1 + 1) % 1
 
-function Confetti({ count = 70 }: { count?: number }) {
+export function Confetti({ count = 70 }: { count?: number }) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       {Array.from({ length: count }, (_, i) => {
@@ -45,13 +45,12 @@ const KIND_LABEL: Record<UnlockKind, string> = {
   drink: 'Bebida',
   dessert: 'Sobremesa',
   customer: 'Novo cliente',
-  equipment: 'Equipamento',
+  equipment: 'Loja',
 }
 
 const CUSTOMER_LOOK = { skin: 2, hairStyle: 0, hairColor: 1, outfit: 0, outfitColor: 0, accessory: 0 }
 
 function UnlockIcon({ entry }: { entry: UnlockEntry }) {
-  const box = 'h-9 w-11 overflow-visible'
   switch (entry.kind) {
     case 'ingredient': {
       const id = (entry.id === 'doublePatty' ? 'patty' : entry.id) as IngredientId
@@ -70,7 +69,7 @@ function UnlockIcon({ entry }: { entry: UnlockEntry }) {
     case 'customer':
       return <CustomerArt look={CUSTOMER_LOOK} type={entry.id as CustomerTypeId} mood="happy" className="h-10 w-9" />
     case 'equipment':
-      return entry.id.startsWith('grill') ? <TabGrillIcon className={box} /> : <TabFriesIcon className={box} />
+      return <ShopIcon className="h-9 w-11 overflow-visible" />
   }
 }
 

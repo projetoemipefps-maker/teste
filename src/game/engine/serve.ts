@@ -7,6 +7,7 @@ import { addReview } from './reputation'
 import { makeReview } from './reviews'
 import { trayIsEmpty } from './session'
 import { applyLevelUp } from './levelup'
+import { basePerks, type Perks } from './upgrades'
 import { addXp, xpForServe } from './xp'
 import type { Customer, Mood, PlayerState, Prices, ServiceNote, SessionState, StepResult, Tray } from './types'
 
@@ -33,7 +34,7 @@ export interface ServiceResult {
 }
 
 /** Calcula nota e pagamento de uma entrega com os preços do jogador (função pura, sem alterar o estado). */
-export function evaluateService(customer: Customer, tray: Tray, prices: Prices): ServiceResult {
+export function evaluateService(customer: Customer, tray: Tray, prices: Prices, perks: Pick<Perks, 'payBonus' | 'tipBonus'> = basePerks()): ServiceResult {
   const { order } = customer
   const type = CUSTOMER_TYPES[customer.type]
   const ratio = patienceRatio(customer)
@@ -67,19 +68,21 @@ export function evaluateService(customer: Customer, tray: Tray, prices: Prices):
   for (const d of rating.drinks) pay(drinkKey(d.order.kind, d.order.size), d.status)
   for (const d of rating.desserts) pay(dessertKey(d.id), d.status)
 
-  const itemsPaid = Math.round(paid * type.payFactor)
+  const itemsPaid = Math.round(paid * type.payFactor * (1 + perks.payBonus))
   // Crítico: só dá gorjeta quando tudo está perfeito.
   const tipAllowed = !type.strict || rating.stars === 5
-  const tip = tipAllowed ? Math.round(computeTip(orderPrice(order, prices), rating.stars, ratio, customer.priceRatio) * type.tipFactor) : 0
+  const tipBoost = 1 + perks.tipBonus
+  const tip = tipAllowed ? Math.round(computeTip(orderPrice(order, prices), rating.stars, ratio, customer.priceRatio) * type.tipFactor * tipBoost) : 0
   const reviewStars = type.strict && rating.stars < 5 ? Math.max(1, rating.stars - CUSTOMER_RULES.criticStarPenalty) : rating.stars
+  const bonusPaid = Math.round(bonus * tipBoost)
   return {
     stars: rating.stars,
     reviewStars,
     burgerCorrect: rating.burgerCorrect,
     itemsPaid,
     tip,
-    bonus,
-    total: itemsPaid + tip + bonus,
+    bonus: bonusPaid,
+    total: itemsPaid + tip + bonusPaid,
     notes: rating.notes,
     extrasDelivered: Math.max(0, exactItems - (soldRecipes.length > 0 ? 1 : 0)),
     soldRecipes,
@@ -92,7 +95,7 @@ export function serveOrder(session: SessionState, player: PlayerState): StepResu
   const slot = session.selectedSlot!
   const customer = session.slots[slot]!
   const type = CUSTOMER_TYPES[customer.type]
-  const result = evaluateService(customer, session.tray, player.prices)
+  const result = evaluateService(customer, session.tray, player.prices, session.perks)
   const xpGain = xpForServe(result.stars, result.extrasDelivered, type.xpFactor)
   const progress = addXp(player.level, player.xp, xpGain)
   const review = makeReview({

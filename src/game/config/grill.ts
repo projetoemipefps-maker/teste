@@ -6,8 +6,6 @@ export interface GrillTimes {
 }
 
 export const GRILL = {
-  /** Um número por espaço da chapa, com o nível em que ele é liberado. */
-  slotLevels: [1, 1, 12, 28] as readonly number[],
   /** Tempos por tipo de proteína: o frango leva mais tempo e o hambúrguer vegetal, menos. */
   kinds: {
     patty: { done: 7, overdone: 11, burnt: 15 },

@@ -6,16 +6,23 @@ import {
   DESSERT_IDS,
   DRINK_CONFIG,
   DRINK_KINDS,
+  DECOR,
+  DECOR_IDS,
+  EQUIPMENT,
   EXTRA_UNLOCKS,
-  FRYER_BASKET_LEVELS,
-  GRILL,
   INGREDIENTS,
   INGREDIENT_IDS,
   OVEN_SLOT_LEVELS,
   RECIPES,
+  SHOP,
+  SHOP_UNLOCK_ENTRY,
   SIDE_IDS,
   STOCK_IDS,
   STOCK_ITEMS,
+  UPGRADES,
+  UPGRADE_IDS,
+  VENUES,
+  VENUE_IDS,
   type CustomerTypeConfig,
   type DessertId,
   type DrinkKind,
@@ -24,6 +31,19 @@ import {
   type SideId,
   type StockId,
 } from '../config'
+
+/** Itens da loja que passam a poder ser comprados em cada nível (depois da abertura da loja), com o nome do que é. */
+function shopNovelties(): Map<number, string[]> {
+  const byLevel = new Map<number, Set<string>>()
+  const add = (level: number, name: string) => {
+    if (level <= SHOP.unlockLevel) return
+    byLevel.set(level, (byLevel.get(level) ?? new Set()).add(name))
+  }
+  for (const id of UPGRADE_IDS) for (const l of UPGRADES[id].levels) add(l.minLevel, EQUIPMENT[UPGRADES[id].equipment].name)
+  for (const id of DECOR_IDS) for (const t of DECOR[id].tiers) add(t.minLevel, 'Decoração')
+  for (const id of VENUE_IDS) if (VENUES[id].cost > 0) add(VENUES[id].minLevel, `Expansão: ${VENUES[id].name}`)
+  return new Map([...byLevel].map(([level, names]) => [level, [...names]]))
+}
 
 export type UnlockKind = 'ingredient' | 'side' | 'drink' | 'dessert' | 'recipe' | 'customer' | 'equipment'
 
@@ -64,12 +84,8 @@ export function allUnlocks(): UnlockEntry[] {
     const c = CUSTOMER_TYPES[id]
     if (c.unlockLevel > 1) out.push({ level: c.unlockLevel, kind: 'customer', id, name: c.name, detail: c.description })
   }
-  GRILL.slotLevels.forEach((level, i) => {
-    if (level > 1) out.push({ level, kind: 'equipment', id: `grill-${i + 1}`, name: `Espaço ${i + 1} na chapa` })
-  })
-  FRYER_BASKET_LEVELS.forEach((level, i) => {
-    if (level > 1 && i >= 2) out.push({ level, kind: 'equipment', id: `fryer-${i + 1}`, name: `Cesto ${i + 1} na fritadeira` })
-  })
+  out.push({ level: SHOP.unlockLevel, kind: 'equipment', ...SHOP_UNLOCK_ENTRY })
+  for (const [level, names] of shopNovelties()) out.push({ level, kind: 'equipment', id: `shop-${level}`, name: 'Novidades na loja', detail: names.join(', ') })
   for (const e of EXTRA_UNLOCKS) out.push({ level: e.level, kind: e.kind, id: e.id, name: e.name, ...(e.detail && { detail: e.detail }) })
   return out.sort((a, b) => a.level - b.level || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind))
 }
@@ -81,10 +97,7 @@ export const unlocksAtLevel = (level: number): UnlockEntry[] => ALL.filter((u) =
 /** O que foi liberado ao ir de `from` (exclusive) até `to` (inclusive). */
 export const unlocksBetween = (from: number, to: number): UnlockEntry[] => ALL.filter((u) => u.level > from && u.level <= to)
 
-const count = (levels: readonly number[], level: number) => levels.filter((l) => l <= level).length
-export const grillSlotCount = (level: number): number => count(GRILL.slotLevels, level)
-export const fryerBasketCount = (level: number): number => count(FRYER_BASKET_LEVELS, level)
-export const ovenSlotCount = (level: number): number => count(OVEN_SLOT_LEVELS, level)
+export const ovenSlotCount = (level: number): number => OVEN_SLOT_LEVELS.filter((l) => l <= level).length
 
 export const unlockedRecipes = (level: number): Recipe[] => RECIPES.filter((r) => r.unlockLevel <= level)
 export const isRecipeUnlocked = (recipe: Recipe, level: number): boolean => recipe.unlockLevel <= level

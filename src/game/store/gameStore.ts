@@ -3,8 +3,11 @@ import { persist } from 'zustand/middleware'
 import {
   addPattyToBurger,
   addToBurger,
+  buyDecor,
+  buyUpgrade,
   chooseCup,
   closeDay,
+  computePerks,
   createPlayer,
   createSession,
   cupToTray,
@@ -12,6 +15,7 @@ import {
   discardCup,
   discardTrayItem,
   effectiveDayMultiplier,
+  expandVenue,
   flipPatty,
   isClosed,
   openDay,
@@ -27,6 +31,7 @@ import {
   setPrice,
   step,
   storedToTray,
+  swapBench,
   takeCookable,
   takeLoan,
   takePatty,
@@ -35,6 +40,7 @@ import {
   type CookableId,
   type CupSize,
   type DaySummary,
+  type DecorId,
   type DrinkKind,
   type GameEvent,
   type PlayerState,
@@ -43,6 +49,8 @@ import {
   type Station,
   type TrayCategory,
   type UnlockEntry,
+  type UpgradeId,
+  type VenueId,
 } from '../engine'
 import { emitGameEvents } from '../loop/eventBus'
 import { SAVE_VERSION, defaultSave, migrateSave, sanitizeSave } from './migrations'
@@ -56,6 +64,12 @@ export interface PendingLevelUp {
   from: number
   level: number
   unlocks: UnlockEntry[]
+}
+
+/** Reforma em andamento: a animação da expansão mostra a fase antiga virando a nova. */
+export interface Renovation {
+  from: VenueId
+  to: VenueId
 }
 
 interface GameState {
@@ -75,6 +89,7 @@ interface GameState {
   referenceSlot: number | null
   /** Tela para onde o Livro de Receitas volta. */
   recipeBookFrom: Screen
+  renovation: Renovation | null
 
   goTo: (screen: Screen) => void
   openRecipeBook: () => void
@@ -93,6 +108,10 @@ interface GameState {
   eraseSave: () => void
 
   buyStock: (cart: Cart) => void
+  buyUpgrade: (id: UpgradeId) => void
+  buyDecor: (id: DecorId) => void
+  expandVenue: () => void
+  finishRenovation: () => void
   setPrice: (key: string, value: number) => void
   takeLoan: () => void
 
@@ -101,6 +120,7 @@ interface GameState {
   addIngredient: (id: IngredientId) => void
   addHeldPatty: (index: number) => void
   discard: () => void
+  swapBench: () => void
   discardTray: (category: TrayCategory) => void
   serve: () => void
 
@@ -182,6 +202,7 @@ export const useGameStore = create<GameState>()(
         levelUp: null,
         referenceSlot: null,
         recipeBookFrom: 'prep',
+        renovation: null,
 
         goTo: (screen) => set({ screen }),
         openRecipeBook: () => set((s) => ({ recipeBookFrom: s.screen === 'recipes' ? s.recipeBookFrom : s.screen, screen: 'recipes' })),
@@ -197,6 +218,7 @@ export const useGameStore = create<GameState>()(
             reviewsOpen: false,
             levelUp: null,
             referenceSlot: null,
+            renovation: null,
             screen: 'prep',
           }),
         continueGame: () => {
@@ -224,6 +246,7 @@ export const useGameStore = create<GameState>()(
               stock: opened.stock,
               level: opened.level,
               dayMultiplier: effectiveDayMultiplier(opened),
+              perks: computePerks(opened),
             }),
             paused: false,
             notice: null,
@@ -253,6 +276,14 @@ export const useGameStore = create<GameState>()(
           }),
 
         buyStock: (cart) => set((s) => ({ player: purchaseStock(s.player, cart) })),
+        buyUpgrade: (id) => set((s) => ({ player: buyUpgrade(s.player, id) })),
+        buyDecor: (id) => set((s) => ({ player: buyDecor(s.player, id) })),
+        expandVenue: () => {
+          const { player } = get()
+          const next = expandVenue(player)
+          if (next !== player) set({ player: next, renovation: { from: player.venue, to: next.venue } })
+        },
+        finishRenovation: () => set({ renovation: null }),
         setPrice: (key, value) => set((s) => ({ player: setPrice(s.player, key, value) })),
         takeLoan: () => set((s) => ({ player: takeLoan(s.player) })),
 
@@ -273,6 +304,7 @@ export const useGameStore = create<GameState>()(
         },
         addHeldPatty: (index) => act((s) => addPattyToBurger(s, index)),
         discard: () => act(discardBurger),
+        swapBench: () => act(swapBench),
         discardTray: (category) => act((s) => discardTrayItem(s, category)),
         placePatty: (slot, kind) => act((s) => placeRawPatty(s, slot, kind)),
         flipPatty: (slot) => act((s) => flipPatty(s, slot)),

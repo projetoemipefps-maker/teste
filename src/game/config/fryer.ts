@@ -1,4 +1,4 @@
 export const FRYER = {
-  /** Fritadeira e estufa: cestos por nível ficam em `FRYER_BASKET_LEVELS` (cookables.ts). */
+  /** Fritadeira e estufa: cestos e tamanho da estufa vêm das melhorias (`UPGRADES`). */
   warmerCapacity: 3,
 } as const

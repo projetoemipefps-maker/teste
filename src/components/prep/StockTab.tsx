@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
-import { BUY_BUNDLES, MAX_STOCK, STOCK_CATEGORIES, STOCK_IDS, STOCK_ITEMS, type StockId } from '@/game/config'
-import { cartCost, daysUntilSpoil, isStockUnlocked, roomFor, type Cart, type PlayerState } from '@/game/engine'
+import { BUY_BUNDLES, STOCK_CATEGORIES, STOCK_IDS, STOCK_ITEMS, type StockId } from '@/game/config'
+import { cartCost, computePerks, daysUntilSpoil, isStockUnlocked, roomFor, type Cart, type PlayerState } from '@/game/engine'
 import { StockArt } from '../ItemArt'
 import { Button } from '../Button'
 
@@ -14,8 +14,9 @@ interface Props {
 function Row({ id, player, cart, setCart }: { id: StockId; player: PlayerState; cart: Cart; setCart: (c: Cart) => void }) {
   const item = STOCK_ITEMS[id]
   const inCart = cart[id] ?? 0
-  const room = roomFor(player.stock, id) - inCart
-  const spoil = daysUntilSpoil(id, player.stock, player.stockAge)
+  const perks = computePerks(player)
+  const room = roomFor(player.stock, id, perks.stockCap) - inCart
+  const spoil = daysUntilSpoil(id, player.stock, player.stockAge, perks.spoilBonus)
   const empty = player.stock[id] <= 0
   const add = (qty: number) => setCart({ ...cart, [id]: inCart + Math.min(qty, room) })
 
@@ -78,7 +79,7 @@ export function StockTab({ player, cart, setCart, onBuy }: Props) {
   const missing = total - player.money
   return (
     <div className="flex min-h-full flex-col gap-2">
-      <p className="px-1 text-sm text-ink/70">Cada lanche gasta ingredientes. Cabem até {MAX_STOCK} de cada item. Alface e tomate estragam se ficarem parados.</p>
+      <p className="px-1 text-sm text-ink/70">Cada lanche gasta ingredientes. Cabem até {computePerks(player).stockCap} de cada item. Alface e tomate estragam se ficarem parados.</p>
       {STOCK_CATEGORIES.map((category) => {
         const ids = STOCK_IDS.filter((id) => STOCK_ITEMS[id].category === category.id && isStockUnlocked(id, player.level))
         if (ids.length === 0) return null

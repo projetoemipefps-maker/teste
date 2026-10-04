@@ -1,5 +1,6 @@
 export const CUSTOMERS = {
-  maxSlots: 3,
+  /** Lugares no balcão com todas as melhorias (o jogador começa com `UPGRADES.counterSeats.base`). */
+  maxSlots: 6,
   /** Paciência = base + porIngrediente × nº de ingredientes do pedido (segundos). */
   patienceBase: 25,
   patiencePerIngredient: 4,

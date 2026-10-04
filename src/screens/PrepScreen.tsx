@@ -1,21 +1,24 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
-import { BookIcon, Coin, Star } from '@/art'
+import { BookIcon, Coin, LockIcon, Star } from '@/art'
 import { Button } from '@/components/Button'
 import { formatMoney } from '@/components/format'
 import { ForecastCard } from '@/components/prep/ForecastCard'
 import { MenuTab } from '@/components/prep/MenuTab'
 import { StockTab } from '@/components/prep/StockTab'
+import { UpgradesTab } from '@/components/prep/UpgradesTab'
+import { RenovationOverlay } from '@/components/RenovationOverlay'
 import { ReviewsList } from '@/components/ReviewsList'
 import { LOAN } from '@/game/config'
 import { ECONOMY } from '@/game/config'
-import { canTakeLoan, loanInstallment, loanTotal, starFill, type Cart } from '@/game/engine'
+import { affordableCount, canTakeLoan, loanInstallment, loanTotal, shopUnlocked, starFill, type Cart } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 
-type Tab = 'stock' | 'menu' | 'reviews'
+type Tab = 'stock' | 'menu' | 'upgrades' | 'reviews'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'stock', label: 'Estoque' },
   { id: 'menu', label: 'Cardápio' },
+  { id: 'upgrades', label: 'Melhorias' },
   { id: 'reviews', label: 'Avaliações' },
 ]
 
@@ -105,6 +108,7 @@ export function PrepScreen() {
   const openShop = useGameStore((s) => s.openShop)
   const goTo = useGameStore((s) => s.goTo)
   const openRecipeBook = useGameStore((s) => s.openRecipeBook)
+  const renovation = useGameStore((s) => s.renovation)
   const [tab, setTab] = useState<Tab>('stock')
   const [cart, setCart] = useState<Cart>({})
 
@@ -169,9 +173,11 @@ export function PrepScreen() {
         <Alerts />
         <ForecastCard player={player} />
 
-        <nav className="sticky top-0 z-10 -mx-3 grid grid-cols-3 gap-1.5 bg-[#FFF3DC] px-3 py-1.5" aria-label="Seções da preparação">
+        <nav className="sticky top-0 z-10 -mx-3 grid grid-cols-4 gap-1 bg-[#FFF3DC] px-3 py-1.5" aria-label="Seções da preparação">
           {TABS.map((t) => {
             const on = tab === t.id
+            const locked = t.id === 'upgrades' && !shopUnlocked(player.level)
+            const badge = t.id === 'upgrades' ? affordableCount(player) : 0
             return (
               <motion.button
                 key={t.id}
@@ -180,10 +186,16 @@ export function PrepScreen() {
                 onClick={() => setTab(t.id)}
                 animate={{ y: on ? 3 : 0 }}
                 whileTap={{ y: 3 }}
-                className={`rounded-xl border-4 border-ink px-1 py-1.5 font-display text-base leading-none ${on ? 'bg-mustard text-ink' : 'bg-toast-light text-white [text-shadow:0_1px_0_#3B1F0E]'}`}
+                className={`relative rounded-xl border-4 border-ink px-0 py-1.5 font-display text-[12px] leading-none tracking-tight ${on ? 'bg-mustard text-ink' : 'bg-toast-light text-white [text-shadow:0_1px_0_#3B1F0E]'}`}
                 style={{ boxShadow: on ? '0 0 0 #3B1F0E' : '0 4px 0 #3B1F0E' }}
               >
                 {t.label}
+                {locked && <LockIcon className="absolute -right-1.5 -top-2.5 h-5 w-5" />}
+                {badge > 0 && !on && (
+                  <span className="absolute -right-1 -top-2 grid h-5 min-w-5 place-items-center rounded-full border-2 border-ink bg-leaf px-1 text-[11px] font-bold leading-none text-white [text-shadow:none]" aria-label={`${badge} itens para comprar`}>
+                    {badge}
+                  </span>
+                )}
               </motion.button>
             )
           })}
@@ -210,6 +222,7 @@ export function PrepScreen() {
               />
             )}
             {tab === 'menu' && <MenuTab player={player} setPrice={setPrice} />}
+            {tab === 'upgrades' && <UpgradesTab player={player} />}
             {tab === 'reviews' && <ReviewsList reviews={player.reviews} reputation={player.reputation} idPrefix="prep-rv" />}
           </motion.div>
         </AnimatePresence>
@@ -220,6 +233,7 @@ export function PrepScreen() {
           Abrir a lanchonete
         </Button>
       </footer>
+      <AnimatePresence>{renovation && <RenovationOverlay key="renovation" />}</AnimatePresence>
     </div>
   )
 }

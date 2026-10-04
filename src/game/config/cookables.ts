@@ -46,9 +46,8 @@ export const DESSERTS: Record<DessertId, DessertConfig> = {
   iceCream: { id: 'iceCream', name: 'Sorvete', basePrice: 8, unlockLevel: 21, stock: { iceCream: 1 } },
 }
 
-/** Cestos da fritadeira e espaços do forno por nível: um número por vaga, com o nível em que ela é liberada. */
-export const FRYER_BASKET_LEVELS: readonly number[] = [1, 1, 16]
+/** Espaços do forno: um número por vaga, com o nível em que ela é liberada (os da chapa e da fritadeira vêm da loja). */
 export const OVEN_SLOT_LEVELS: readonly number[] = [12, 12]
-/** Porções que cabem na estufa e na vitrine de brownies. */
+/** Porções que cabem na estufa (sem melhorias) e na vitrine de brownies. */
 export const WARMER_CAPACITY = 3
 export const SHELF_CAPACITY = 3

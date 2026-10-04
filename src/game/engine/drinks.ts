@@ -1,5 +1,6 @@
-import { DRINKS, DRINK_CONFIG, TRAY, type CupSize, type DrinkKind } from '../config'
+import { DRINKS, DRINK_AUTO_STOP_RATIO, DRINK_CONFIG, TRAY, type CupSize, type DrinkKind } from '../config'
 import { hasStock, refundStock, useStock } from './stock'
+import type { Perks } from './upgrades'
 import type { ActionResult, Cup, DrinkQuality, SessionState } from './types'
 
 export function cupCapacity(size: CupSize): number {
@@ -60,11 +61,28 @@ export function setPouring(session: SessionState, pouring: boolean): SessionStat
   return value === session.pouring ? session : { ...session, pouring: value }
 }
 
-/** Enche o copo enquanto o botão está pressionado. Devolve true no instante em que começa a derramar. */
-export function pourCup(cup: Cup, dt: number): { cup: Cup; startedSpilling: boolean } {
+export interface PourResult {
+  cup: Cup
+  /** Começou a derramar neste instante. */
+  startedSpilling: boolean
+  /** Máquina automática: o copo chegou ao ponto certo e ela parou. */
+  finished: boolean
+}
+
+/**
+ * Enche o copo enquanto o botão está pressionado. Com a melhoria de enchimento automático, a máquina para sozinha
+ * no ponto certo (copo cheio, sem derramar) e pode encher mais rápido.
+ */
+export function pourCup(cup: Cup, dt: number, perks?: Pick<Perks, 'drinkAuto' | 'drinkSpeed'>): PourResult {
   const capacity = cupCapacity(cup.size)
-  const fill = Math.min(cup.fill + DRINK_CONFIG[cup.kind].fillRate * dt, capacity * DRINKS.overflowCapRatio)
-  return { cup: { ...cup, fill }, startedSpilling: cup.fill <= capacity && fill > capacity }
+  const rate = DRINK_CONFIG[cup.kind].fillRate * (perks?.drinkSpeed ?? 1)
+  if (perks?.drinkAuto) {
+    const stopAt = capacity * DRINK_AUTO_STOP_RATIO
+    const fill = Math.min(cup.fill + rate * dt, Math.max(cup.fill, stopAt))
+    return { cup: { ...cup, fill }, startedSpilling: false, finished: fill >= stopAt }
+  }
+  const fill = Math.min(cup.fill + rate * dt, capacity * DRINKS.overflowCapRatio)
+  return { cup: { ...cup, fill }, startedSpilling: cup.fill <= capacity && fill > capacity, finished: false }
 }
 
 export function cupToTray(session: SessionState): ActionResult {

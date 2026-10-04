@@ -1,6 +1,7 @@
 import { patienceFor } from './customers'
 import { createSession, type SessionOptions } from './session'
 import { filledStock } from './stock'
+import { basePerks, type Perks } from './upgrades'
 import { createPlayer } from './player'
 import { defaultPrices, orderPriceRatio } from './pricing'
 import type { Customer, CustomerLook, CustomerTypeId, OrderItems, PlayerState, SessionState } from './types'
@@ -39,6 +40,9 @@ export function testCustomer(o: OrderItems, patienceRatioValue = 1, slot = 0, ty
   }
 }
 
+/** Efeitos de teste: o começo do jogo, mas com 4 espaços na chapa e 3 cestos (o que o nível máximo tinha antes da loja). */
+export const testPerks = (overrides: Partial<Perks> = {}): Perks => ({ ...basePerks(), grillSlots: 4, fryerBaskets: 3, ...overrides })
+
 /** Sessão de teste: nível máximo (tudo liberado) e estoque farto, a menos que se diga o contrário. */
 export const testSession = (seed = 1, options: SessionOptions = {}): SessionState =>
-  createSession(seed, { level: 50, stock: filledStock(99), ...options })
+  createSession(seed, { level: 50, stock: filledStock(99), perks: testPerks(), ...options })

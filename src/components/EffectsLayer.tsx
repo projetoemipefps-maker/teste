@@ -32,6 +32,11 @@ export function EffectsLayer() {
   useEffect(
     () =>
       onGameEvent((e) => {
+        if (e.type === 'pattyAlarm') {
+          // Alarme da chapa: no celular, uma vibração curta chama a atenção mesmo com outra aba aberta.
+          navigator.vibrate?.(60)
+          return
+        }
         if (e.type === 'customerChangedMind') {
           const from = center(`[data-slot="${e.slot}"]`)
           if (from) setFx((list) => [...list, { id: ++seq, kind: 'text', x: from.x, y: from.y - 40, dx: 0, dy: -40, delay: 0, text: 'Mudei de ideia!', tone: 'bad' }])

@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion'
 import { DEMAND, SHIFT } from '@/game/config'
 import {
+  computePerks,
   dayMultiplier,
   demandFactorForReputation,
   demandFactorFromPrices,
+  effectiveReputation,
   expectedCustomers,
   forecastOf,
   type Forecast,
@@ -22,7 +24,13 @@ const peakName = (hour: number) => (hour < 16 ? 'Almoço' : 'Jantar')
 export function ForecastCard({ player }: { player: PlayerState }) {
   const mult = dayMultiplier(player.day)
   const forecast = forecastOf(mult)
-  const factor = mult * player.dayBoost * demandFactorForReputation(player.reputation) * demandFactorFromPrices(player.prices, player.level)
+  const perks = computePerks(player)
+  const factor =
+    mult *
+    player.dayBoost *
+    perks.demandFactor *
+    demandFactorForReputation(effectiveReputation(player.reputation, perks)) *
+    demandFactorFromPrices(player.prices, player.level)
   const hours = SHIFT.closeHour - SHIFT.openHour
   const peak = Math.max(...DEMAND.hourly)
 

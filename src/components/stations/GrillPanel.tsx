@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useAnimationControls } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { FlipIcon, PattyDisc, pattyHeatColor } from '@/art'
 import { GRILL, INGREDIENTS, PROTEIN_IDS, UI_LIMITS, type ProteinId } from '@/game/config'
-import { grillTimes, isIngredientUnlocked, pattyHint, pattyStage, type GrillPatty, type PattyStage } from '@/game/engine'
+import { equipmentTier, grillTimes, isIngredientUnlocked, pattyHint, pattyStage, type GrillPatty, type PattyStage } from '@/game/engine'
 import { useGameStore } from '@/game/store'
 import { Button } from '../Button'
 import { CookRing } from '../CookRing'
@@ -15,6 +15,14 @@ const STAGE_LABEL: Record<PattyStage, { text: string; cls: string }> = {
   overdone: { text: 'Passada', cls: 'bg-orange text-white' },
   burnt: { text: 'Queimada!', cls: 'bg-tomato text-white' },
 }
+
+/** Superfície da chapa conforme as melhorias: ferro escuro → reforçada → inox → inox premium com friso dourado. */
+const SURFACE = [
+  'repeating-linear-gradient(90deg, rgba(0,0,0,.35) 0 4px, transparent 4px 18px), radial-gradient(ellipse at 50% 40%, #6F6F78, #3E3E46)',
+  'repeating-linear-gradient(90deg, rgba(0,0,0,.3) 0 4px, transparent 4px 18px), radial-gradient(ellipse at 50% 40%, #8E8E9A, #4C4C57)',
+  'repeating-linear-gradient(90deg, rgba(255,255,255,.4) 0 2px, transparent 2px 10px), linear-gradient(#DCE2EA, #98A1B0)',
+  'repeating-linear-gradient(90deg, rgba(255,255,255,.45) 0 2px, transparent 2px 10px), linear-gradient(#F1F4F9, #A9B2C2)',
+] as const
 
 const SHORT: Record<ProteinId, string> = { patty: 'Carne', chicken: 'Frango', veggie: 'Vegetal' }
 const zonesFor = (kind: ProteinId) => {
@@ -32,9 +40,11 @@ interface SlotProps {
   size: number
   /** Chapa com mais de 2 espaços: botões mais baixos para caber tudo na tela. */
   compact: boolean
+  /** Superfície clara (inox): o contraste dos botões vazios muda. */
+  light: boolean
 }
 
-function GrillSlot({ slot, kind, size, compact }: SlotProps) {
+function GrillSlot({ slot, kind, size, compact, light }: SlotProps) {
   const patty = useGameStore((s) => s.session.grill[slot] ?? null)
   const heldFull = useGameStore((s) => s.session.held.length >= GRILL.heldCapacity)
   const place = useGameStore((s) => s.placePatty)
@@ -58,7 +68,7 @@ function GrillSlot({ slot, kind, size, compact }: SlotProps) {
               aria-label={`Colocar ${INGREDIENTS[kind].name.toLowerCase()} crua na chapa (espaço ${slot + 1})`}
               disabled={stock <= 0}
               onClick={() => place(slot, kind)}
-              className={`flex flex-col items-center justify-center rounded-full border-4 border-dashed border-white/55 bg-black/20 font-display text-white/90 ${stock <= 0 ? 'opacity-40 grayscale' : ''}`}
+              className={`flex flex-col items-center justify-center rounded-full border-4 border-dashed font-display ${light ? 'border-ink/45 bg-ink/10 text-ink' : 'border-white/55 bg-black/20 text-white/90'} ${stock <= 0 ? 'opacity-40 grayscale' : ''}`}
               style={{ width: inner, height: inner }}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -68,7 +78,7 @@ function GrillSlot({ slot, kind, size, compact }: SlotProps) {
               <span className="text-3xl leading-none">{stock <= 0 ? '×' : '+'}</span>
               <span className="text-xs leading-none">{stock <= 0 ? `Sem ${SHORT[kind].toLowerCase()}` : SHORT[kind]}</span>
               {stock > 0 && (
-                <span className={`mt-0.5 rounded-full px-1.5 text-[10px] leading-tight ${stock <= UI_LIMITS.lowStock ? 'bg-orange text-white' : 'bg-white/25'}`}>×{stock}</span>
+                <span className={`mt-0.5 rounded-full px-1.5 text-[10px] leading-tight ${stock <= UI_LIMITS.lowStock ? 'bg-orange text-white' : light ? 'bg-ink/15' : 'bg-white/25'}`}>×{stock}</span>
               )}
             </motion.button>
           )}
@@ -89,7 +99,8 @@ function GrillSlot({ slot, kind, size, compact }: SlotProps) {
 
 function PattyOnGrill({ patty, size, onFlip }: { patty: GrillPatty; size: number; onFlip: () => void }) {
   const stage = pattyStage(patty)
-  const hint = pattyHint(patty)
+  const perks = useGameStore((s) => s.session.perks)
+  const hint = pattyHint(patty, perks)
   const times = grillTimes(patty.kind)
   const up: 0 | 1 = patty.down === 0 ? 1 : 0
   const controls = useAnimationControls()
@@ -156,6 +167,17 @@ function PattyOnGrill({ patty, size, onFlip }: { patty: GrillPatty; size: number
         {label.text}
       </span>
       <AnimatePresence>
+        {hint === 'alarm' && (
+          <motion.span
+            key="alarm"
+            className="fx-pulse absolute -top-3 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border-[3px] border-ink bg-tomato px-2 py-0.5 font-display text-sm leading-none text-white"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+          >
+            Tire já!
+          </motion.span>
+        )}
         {hint === 'flip' && (
           <motion.span
             key="flip"
@@ -180,7 +202,10 @@ export function GrillPanel() {
   const [choice, setChoice] = useState<ProteinId>('patty')
   const kind = proteins.includes(choice) ? choice : 'patty'
   const compact = slots > 2
-  const size = compact ? 72 : 120
+  const columns = slots <= 2 ? slots : slots <= 4 ? 2 : 3
+  const size = slots <= 2 ? 120 : slots <= 4 ? 72 : 66
+  const tier = useGameStore((s) => equipmentTier(s.player, 'grill'))
+  const light = tier >= 2
 
   return (
     <div className="flex h-full flex-col gap-1.5">
@@ -204,14 +229,12 @@ export function GrillPanel() {
       )}
       <div
         className={`relative flex min-h-0 flex-1 items-center justify-between gap-1.5 rounded-[24px] border-4 border-ink px-2 ${slots > 2 ? 'py-1' : 'py-2'} shadow-[inset_0_6px_0_rgba(255,255,255,.12),0_5px_0_rgba(59,31,14,.4)]`}
-        style={{
-          background:
-            'repeating-linear-gradient(90deg, rgba(0,0,0,.35) 0 4px, transparent 4px 18px), radial-gradient(ellipse at 50% 40%, #6F6F78, #3E3E46)',
-        }}
+        data-grill-tier={tier}
+        style={{ background: SURFACE[tier], ...(tier >= 3 && { boxShadow: 'inset 0 0 0 3px #F5B82E, 0 5px 0 rgba(59,31,14,.4)' }) }}
       >
-        <div className={compact ? 'grid flex-1 grid-cols-2 place-items-center gap-x-1 gap-y-1.5' : 'flex flex-1 items-center justify-around'}>
+        <div className={compact ? 'grid flex-1 place-items-center gap-x-1 gap-y-1.5' : 'flex flex-1 items-center justify-around'} style={compact ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}>
           {Array.from({ length: slots }, (_, i) => (
-            <GrillSlot key={i} slot={i} kind={kind} size={size} compact={compact} />
+            <GrillSlot key={i} slot={i} kind={kind} size={size} compact={compact} light={light} />
           ))}
         </div>
         <HeldPlate held={held} />

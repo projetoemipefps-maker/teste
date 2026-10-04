@@ -4,7 +4,6 @@ import {
   CUSTOMER_TYPES,
   DESSERTS,
   DRINK_CONFIG,
-  GRILL,
   INGREDIENTS,
   INGREDIENT_IDS,
   PROGRESSION,
@@ -12,11 +11,10 @@ import {
   STOCK_IDS,
   STOCK_ITEMS,
   MAX_UNLOCKS_PER_LEVEL,
+  SHOP,
 } from '../config'
 import {
   allUnlocks,
-  fryerBasketCount,
-  grillSlotCount,
   ovenSlotCount,
   unlockedCustomerTypes,
   unlockedDrinkKinds,
@@ -75,9 +73,8 @@ describe('desbloqueios por nível', () => {
     expect(unlockedSides(1)).toEqual(['fries'])
     expect(unlockedDrinkKinds(1)).toEqual(['soda'])
     expect(unlockedCustomerTypes(1).map((c) => c.id)).toEqual(['normal'])
-    expect(grillSlotCount(1)).toBe(2)
-    expect(fryerBasketCount(1)).toBe(2)
     expect(ovenSlotCount(1)).toBe(0)
+    expect(ovenSlotCount(12)).toBe(2)
   })
 
   it('o que é liberado só aparece nas listas a partir do nível certo', () => {
@@ -100,11 +97,18 @@ describe('desbloqueios por nível', () => {
     expect(names(2)).toContain('Cheddar')
   })
 
-  it('espaços extras na chapa e na fritadeira entram com o nível', () => {
-    expect(names(12).some((n) => n.includes('chapa'))).toBe(true)
-    expect(names(28).some((n) => n.includes('chapa'))).toBe(true)
-    expect(names(16).some((n) => n.includes('fritadeira'))).toBe(true)
-    expect(GRILL.slotLevels.length).toBe(4)
+  it('a loja de melhorias abre no nível 3 e traz novidades nos níveis seguintes', () => {
+    expect(names(SHOP.unlockLevel)).toContain('Loja de melhorias')
+    const novelties = allUnlocks().filter((u) => u.id.startsWith('shop-'))
+    expect(novelties.length).toBeGreaterThan(5)
+    expect(novelties.every((u) => u.level > SHOP.unlockLevel && u.detail)).toBe(true)
+    // equipamento e decoração aparecem no detalhe da lista, e a expansão pelo nome da fase
+    const details = novelties.map((u) => u.detail).join(' | ')
+    for (const part of ['Chapa', 'Fritadeira', 'Balcão', 'Decoração', 'Expansão: Lanchonete de bairro']) expect(details).toContain(part)
+  })
+
+  it('espaços da chapa e da fritadeira não vêm mais do nível (vêm da loja)', () => {
+    expect(allUnlocks().some((u) => u.id.startsWith('grill-') || u.id.startsWith('fryer-'))).toBe(false)
   })
 
   it('cada receita só usa ingredientes já liberados no nível dela e cabe nos catálogos', () => {

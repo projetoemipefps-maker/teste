@@ -3,10 +3,11 @@ import { isClosing } from './clock'
 import { changeMind, firstFreeSlot, patienceRatio, rollCustomer } from './customers'
 import { spawnInterval } from './demand'
 import { pourCup } from './drinks'
-import { cookPatty, pattyStage } from './grill'
+import { alarmRinging, cookPatty, pattyStage } from './grill'
 import { addReview } from './reputation'
 import { makeLostReview } from './reviews'
 import { nextRandom } from './rng'
+import { effectiveReputation } from './upgrades'
 import type { CookerItem, Customer, GameEvent, GrillPatty, PlayerState, SessionState, Station, StepResult, StoredItem } from './types'
 
 const burntBefore = (p: GrillPatty) => pattyStage(p) === 'burnt'
@@ -49,31 +50,35 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
   })
 
   // Cozinha: chapa, fritadeira, estufa e máquina de refrigerante.
+  const { perks } = session
   const grill = session.grill.map((p, slot): GrillPatty | null => {
     if (!p) return null
-    const next = cookPatty(p, dt)
+    const next = cookPatty(p, dt * perks.grillSpeed)
     if (!burntBefore(p) && burntBefore(next)) events.push({ type: 'pattyBurnt', slot })
+    if (!alarmRinging(p, perks) && alarmRinging(next, perks)) events.push({ type: 'pattyAlarm', slot })
     return next
   })
-  const cookItems = (items: (CookerItem | null)[], station: Station): (CookerItem | null)[] =>
+  const cookItems = (items: (CookerItem | null)[], station: Station, speed: number): (CookerItem | null)[] =>
     items.map((b, index) => {
       if (!b) return null
-      const cook = b.cook + dt
+      const cook = b.cook + dt * speed
       const c = COOKABLES[b.kind]
       if (b.cook < c.readySeconds && cook >= c.readySeconds) events.push({ type: 'cookReady', station, index })
       if (b.cook < c.burntSeconds && cook >= c.burntSeconds) events.push({ type: 'cookBurnt', station, index })
       return { ...b, cook }
     })
-  const fryer = cookItems(session.fryer, 'fryer')
-  const oven = cookItems(session.oven, 'oven')
+  const fryer = cookItems(session.fryer, 'fryer', perks.fryerSpeed)
+  const oven = cookItems(session.oven, 'oven', 1)
   const age = (items: StoredItem[]): StoredItem[] => items.map((f) => ({ ...f, age: f.age + dt }))
   const warmer = age(session.warmer)
   const shelf = age(session.shelf)
   let cup = session.cup
-  if (cup && session.pouring) {
-    const poured = pourCup(cup, dt)
+  let pouring = session.pouring
+  if (cup && pouring) {
+    const poured = pourCup(cup, dt, perks)
     cup = poured.cup
     if (poured.startedSpilling) events.push({ type: 'cupSpilled' })
+    if (poured.finished) pouring = false // máquina automática: parou no ponto certo
   }
 
   const elapsed = session.elapsed + dt
@@ -89,14 +94,14 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
         nextCustomerId,
         free,
         slots.filter((c): c is Customer => c !== null),
-        { prices: nextPlayer.prices, reputation: nextPlayer.reputation },
+        { prices: nextPlayer.prices, reputation: effectiveReputation(nextPlayer.reputation, perks), patienceBonus: perks.patienceBonus },
       )
       const [jitter, s2] = nextRandom(s1)
       slots[free] = customer
       events.push({ type: 'customerArrived', slot: free, customerId: customer.id })
       nextCustomerId += 1
       rngState = s2
-      spawnTimer = spawnInterval(elapsed, session.dayMultiplier, nextPlayer.reputation, nextPlayer.prices, jitter, session.level)
+      spawnTimer = spawnInterval(elapsed, session.dayMultiplier, effectiveReputation(nextPlayer.reputation, perks), nextPlayer.prices, jitter, session.level)
     } else {
       spawnTimer = 0 // balcão cheio: o próximo chega assim que abrir uma vaga
     }
@@ -124,7 +129,7 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
       oven,
       shelf,
       cup,
-      pouring: ended ? false : session.pouring,
+      pouring: ended ? false : pouring,
       elapsed,
       ended,
       spawnTimer,
