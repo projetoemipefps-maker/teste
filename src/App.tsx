@@ -1,4 +1,5 @@
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
+import { useEffect } from 'react'
 import { KitchenScreen } from './screens/KitchenScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { TitleScreen } from './screens/TitleScreen'
@@ -7,6 +8,11 @@ import { useGameStore } from './game/store'
 export function App() {
   const screen = useGameStore((s) => s.screen)
   const reduceMotion = useGameStore((s) => s.settings.reduceMotion)
+
+  // Os efeitos em CSS (fumaça, chiado, faíscas) também respeitam a configuração.
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduce-motion', reduceMotion)
+  }, [reduceMotion])
 
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>

@@ -40,7 +40,7 @@ export function EffectsLayer() {
           if (e.type === 'customerServed') {
             const target = center('[data-money]')
             if (target && e.total > 0) {
-              const coins = Math.min(8, Math.max(3, Math.ceil(e.total / 4)))
+              const coins = Math.min(10, Math.max(3, Math.ceil(e.total / 5)))
               for (let i = 0; i < coins; i++) {
                 added.push({
                   id: ++seq,
@@ -52,16 +52,6 @@ export function EffectsLayer() {
                 })
               }
             }
-            added.push({
-              id: ++seq,
-              kind: 'text',
-              ...start,
-              dx: 0,
-              dy: -50,
-              delay: 0,
-              text: e.correct ? `+R$ ${e.total}` : 'Pedido errado!',
-              tone: e.correct ? 'good' : 'bad',
-            })
           } else {
             added.push({ id: ++seq, kind: 'text', ...start, dx: 0, dy: -50, delay: 0, text: 'Foi embora!', tone: 'bad' })
           }

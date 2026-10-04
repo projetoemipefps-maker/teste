@@ -1,10 +1,6 @@
-import { ECONOMY, INGREDIENTS, type Recipe } from '../config'
-
-export interface Payment {
-  base: number
-  tip: number
-  total: number
-}
+import { DRINKS, ECONOMY, INGREDIENTS, type CupSize, type Recipe } from '../config'
+import type { OrderItems } from './types'
+import { getRecipe } from './customers'
 
 /** Preço de venda do lanche (R$, inteiro). */
 export function recipePrice(recipe: Recipe): number {
@@ -12,17 +8,30 @@ export function recipePrice(recipe: Recipe): number {
   return Math.round(cost * ECONOMY.priceMarkup)
 }
 
-/**
- * Pagamento por um atendimento. Certo: preço cheio + gorjeta proporcional à paciência restante.
- * Errado: fração do preço, sem gorjeta.
- */
-export function computePayment(recipe: Recipe, patienceRatio: number, correct: boolean): Payment {
-  const price = recipePrice(recipe)
-  if (!correct) {
-    const base = Math.round(price * ECONOMY.wrongPayFraction)
-    return { base, tip: 0, total: base }
-  }
+export function drinkPrice(size: CupSize): number {
+  return DRINKS.cups[size].price
+}
+
+/** Quanto o pedido custa quando tudo é entregue certo. */
+export function orderPrice(order: OrderItems): number {
+  return (
+    recipePrice(getRecipe(order.recipeId)) +
+    (order.fries ? ECONOMY.friesPrice : 0) +
+    (order.drink ? drinkPrice(order.drink) : 0)
+  )
+}
+
+export const wrongItemPay = (price: number): number => Math.round(price * ECONOMY.wrongPayFraction)
+
+/** Gorjeta: depende da nota e da rapidez (paciência que sobrou). */
+export function computeTip(price: number, stars: number, patienceRatio: number): number {
+  const fraction = ECONOMY.tipFractionByStars[Math.min(5, Math.max(1, stars)) - 1] ?? 0
   const ratio = Math.min(1, Math.max(0, patienceRatio))
-  const tip = Math.round(price * ECONOMY.tipMaxFraction * ratio)
-  return { base: price, tip, total: price + tip }
+  const speed = ECONOMY.tipSpeedFloor + (1 - ECONOMY.tipSpeedFloor) * ratio
+  return Math.round(price * fraction * speed)
+}
+
+/** Bônus por carnes no ponto: proporcional à fração de carnes perfeitas do lanche. */
+export function perfectPattyBonus(burgerPrice: number, perfectShare: number): number {
+  return Math.round(burgerPrice * ECONOMY.perfectPattyBonusFraction * perfectShare)
 }

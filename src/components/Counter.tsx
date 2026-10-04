@@ -6,7 +6,7 @@ import { CustomerSlot } from './CustomerSlot'
 export function Counter() {
   return (
     <section
-      className="relative min-h-[262px] flex-[1.1] overflow-hidden border-b-4 border-ink"
+      className="relative h-[244px] flex-none overflow-hidden border-b-4 border-ink"
       style={{
         background:
           'linear-gradient(rgba(59,31,14,.07) 2px, transparent 2px) 0 0/44px 44px, linear-gradient(90deg, rgba(59,31,14,.07) 2px, transparent 2px) 0 0/44px 44px, #FFF3DC',

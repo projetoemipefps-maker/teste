@@ -1,11 +1,17 @@
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/Button'
 import { Counter } from '@/components/Counter'
 import { EffectsLayer } from '@/components/EffectsLayer'
 import { Hud } from '@/components/Hud'
 import { Modal } from '@/components/Modal'
-import { Workbench } from '@/components/Workbench'
+import { ScorePopup } from '@/components/ScorePopup'
+import { StationTabs, type Station } from '@/components/StationTabs'
+import { TrayStrip } from '@/components/TrayStrip'
+import { AssemblyPanel } from '@/components/stations/AssemblyPanel'
+import { DrinkPanel } from '@/components/stations/DrinkPanel'
+import { FryerPanel } from '@/components/stations/FryerPanel'
+import { GrillPanel } from '@/components/stations/GrillPanel'
 import { useGameLoop } from '@/game/loop/useGameLoop'
 import { useGameStore } from '@/game/store'
 
@@ -37,7 +43,7 @@ function SummaryModal() {
   const goTo = useGameStore((s) => s.goTo)
   const rows: [string, string][] = [
     ['Atendidos', String(stats.served)],
-    ['Pedidos errados', String(stats.wrong)],
+    ['Nota média', stats.served > 0 ? `${(stats.starsTotal / stats.served).toFixed(1)} ★` : '—'],
     ['Clientes perdidos', String(stats.lost)],
     ['Faturamento', `R$ ${stats.earned}`],
   ]
@@ -60,8 +66,8 @@ function SummaryModal() {
 }
 
 /** Altura de projeto da cozinha; em telas mais baixas ela é reduzida proporcionalmente. */
-const DESIGN_HEIGHT = 740
-const MIN_SCALE = 0.7
+const DESIGN_HEIGHT = 780
+const MIN_SCALE = 0.68
 
 function useKitchenScale(): number {
   const calc = () => Math.min(1, Math.max(MIN_SCALE, window.innerHeight / DESIGN_HEIGHT))
@@ -76,6 +82,7 @@ function useKitchenScale(): number {
 
 export function KitchenScreen() {
   const scale = useKitchenScale()
+  const [station, setStation] = useState<Station>('assembly')
   const paused = useGameStore((s) => s.paused)
   const ended = useGameStore((s) => s.session.ended)
   const tick = useGameStore((s) => s.tick)
@@ -98,9 +105,34 @@ export function KitchenScreen() {
       >
         <Hud />
         <Counter />
-        <Workbench />
+        <TrayStrip />
+        <section
+          className="relative min-h-0 flex-1 px-3 pb-2 pt-3"
+          style={{
+            background:
+              'repeating-linear-gradient(90deg, rgba(0,0,0,.05) 0 3px, transparent 3px 46px), linear-gradient(#C98A4B, #B4743A)',
+          }}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={station}
+              className="h-full"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6, transition: { duration: 0.08 } }}
+              transition={{ duration: 0.14 }}
+            >
+              {station === 'assembly' && <AssemblyPanel />}
+              {station === 'grill' && <GrillPanel />}
+              {station === 'fryer' && <FryerPanel />}
+              {station === 'drinks' && <DrinkPanel />}
+            </motion.div>
+          </AnimatePresence>
+        </section>
+        <StationTabs active={station} onChange={setStation} />
       </div>
       <EffectsLayer />
+      <ScorePopup />
       <AnimatePresence>
         {paused && !ended && <PauseModal key="pause" />}
         {ended && <SummaryModal key="summary" />}

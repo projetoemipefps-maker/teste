@@ -7,7 +7,7 @@ import { useGameStore } from '@/game/store'
 
 function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border-[3px] border-ink bg-cream px-2.5 py-0.5 font-display text-lg text-ink shadow-[0_3px_0_rgba(59,31,14,.4)] ${className}`}>
+    <div className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border-[3px] border-ink bg-cream px-2.5 py-px font-display text-base text-ink shadow-[0_3px_0_rgba(59,31,14,.4)] ${className}`}>
       {children}
     </div>
   )
@@ -35,7 +35,7 @@ function Money() {
   return (
     <motion.div style={{ scale: bump }} data-money>
       <Chip>
-        <Coin className="h-7 w-7" />
+        <Coin className="h-6 w-6" />
         <span className="text-ink">R$</span>
         <motion.span className="min-w-[1.5ch] tabular-nums">{text}</motion.span>
       </Chip>
@@ -54,7 +54,7 @@ function Level() {
         initial={{ scale: 1.6, rotate: -15 }}
         animate={{ scale: 1, rotate: 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 12 }}
-        className="relative z-10 grid h-11 w-11 shrink-0 place-items-center rounded-full border-4 border-ink bg-mustard font-display text-2xl text-ink shadow-[0_3px_0_rgba(59,31,14,.4)]"
+        className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-full border-4 border-ink bg-mustard font-display text-xl text-ink shadow-[0_3px_0_rgba(59,31,14,.4)]"
         aria-label={`Nível ${level}`}
       >
         {level}
@@ -80,7 +80,7 @@ function Stars() {
   return (
     <div className="flex" role="img" aria-label={`Reputação ${rep.toFixed(1)} de 5 estrelas`}>
       {Array.from({ length: PROGRESSION.maxReputation }, (_, i) => (
-        <Star key={i} id={`hud-star-${i}`} amount={starFill(rep, i)} className="-mx-px h-7 w-7" />
+        <Star key={i} id={`hud-star-${i}`} amount={starFill(rep, i)} className="-mx-px h-6 w-6" />
       ))}
     </div>
   )
@@ -100,7 +100,7 @@ export function Hud() {
   const day = useGameStore((s) => s.player.day)
   const setPaused = useGameStore((s) => s.setPaused)
   return (
-    <header className="relative z-30 rounded-b-[26px] border-b-4 border-ink bg-gradient-to-b from-tomato-light to-tomato px-3 pb-2.5 pt-2.5 shadow-[0_5px_0_rgba(59,31,14,.35)]">
+    <header className="relative z-30 rounded-b-[26px] border-b-4 border-ink bg-gradient-to-b from-tomato-light to-tomato px-3 pb-2 pt-2 shadow-[0_5px_0_rgba(59,31,14,.35)]">
       <div className="flex items-center gap-2">
         <Level />
         <Money />
@@ -109,12 +109,12 @@ export function Hud() {
           aria-label="Pausar"
           onClick={() => setPaused(true)}
           whileTap={{ scale: 0.88, y: 3 }}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border-4 border-ink bg-toast shadow-[0_4px_0_#3B1F0E]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border-4 border-ink bg-toast shadow-[0_4px_0_#3B1F0E]"
         >
           <PauseIcon className="h-6 w-6" />
         </motion.button>
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="mt-1.5 flex items-center justify-between gap-2">
         <Chip>
           <SunIcon className="h-6 w-6" />
           <span>Dia {day}</span>

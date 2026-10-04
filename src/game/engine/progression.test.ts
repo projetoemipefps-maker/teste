@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { PROGRESSION, RECIPES } from '../config'
+import { PROGRESSION, SHIFT } from '../config'
 import { addXp, xpForServe, xpProgress, xpToNext } from './xp'
-import { applyReputation, clampReputation, reputationDelta, starFill } from './rating'
+import { applyReputation, clampReputation, reputationForStars, reputationLost, starFill } from './rating'
 import { formatClock, shiftProgress } from './clock'
-import { SHIFT } from '../config'
 
 describe('XP e nível', () => {
   it('a curva cresce a cada nível', () => {
@@ -32,11 +31,10 @@ describe('XP e nível', () => {
     expect(xpProgress(r.level, r.xp)).toBe(1)
   })
 
-  it('acerto dá mais XP que erro, e lanche maior dá mais', () => {
-    const small = RECIPES.find((r) => r.id === 'simples')!
-    const big = RECIPES.find((r) => r.id === 'x-salada')!
-    expect(xpForServe(small, true)).toBeGreaterThan(xpForServe(small, false))
-    expect(xpForServe(big, true)).toBeGreaterThan(xpForServe(small, true))
+  it('nota maior e itens extras dão mais XP', () => {
+    expect(xpForServe(5, 0)).toBeGreaterThan(xpForServe(1, 0))
+    expect(xpForServe(3, 2)).toBe(xpForServe(3, 0) + 2 * PROGRESSION.xpPerExtraItem)
+    expect(xpForServe(9, 0)).toBe(xpForServe(5, 0))
   })
 
   it('progresso da barra fica entre 0 e 1', () => {
@@ -46,10 +44,11 @@ describe('XP e nível', () => {
 })
 
 describe('reputação', () => {
-  it('ótimo atendimento rende mais que bom; erro e abandono tiram', () => {
-    expect(reputationDelta('correct', 1)).toBeGreaterThan(reputationDelta('correct', 0.1))
-    expect(reputationDelta('wrong', 1)).toBeLessThan(0)
-    expect(reputationDelta('lost', 0)).toBeLessThan(reputationDelta('wrong', 0))
+  it('nota alta sobe, nota baixa desce, abandono desce mais', () => {
+    expect(reputationForStars(5)).toBeGreaterThan(reputationForStars(4))
+    expect(reputationForStars(1)).toBeLessThan(0)
+    expect(reputationForStars(3)).toBe(0)
+    expect(reputationLost()).toBeLessThan(reputationForStars(1))
   })
 
   it('fica entre 0 e o máximo', () => {

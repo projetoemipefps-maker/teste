@@ -1,6 +1,6 @@
-import { CUSTOMERS, RECIPES, type Recipe } from '../config'
+import { COMBOS, CUP_SIZES, CUSTOMERS, RECIPES, type Recipe } from '../config'
 import { nextRandom, randomInt } from './rng'
-import type { Customer } from './types'
+import type { Customer, OrderItems } from './types'
 
 export function getRecipe(id: string): Recipe {
   const recipe = RECIPES.find((r) => r.id === id)
@@ -8,8 +8,14 @@ export function getRecipe(id: string): Recipe {
   return recipe
 }
 
-export function patienceFor(recipe: Recipe): number {
-  return CUSTOMERS.patienceBase + CUSTOMERS.patiencePerIngredient * recipe.ingredients.length
+export function patienceFor(order: OrderItems): number {
+  const recipe = getRecipe(order.recipeId)
+  return (
+    CUSTOMERS.patienceBase +
+    CUSTOMERS.patiencePerIngredient * recipe.ingredients.length +
+    (order.fries ? CUSTOMERS.patienceFriesBonus : 0) +
+    (order.drink ? CUSTOMERS.patienceDrinkBonus : 0)
+  )
 }
 
 export function patienceRatio(customer: Customer): number {
@@ -24,7 +30,30 @@ export function firstFreeSlot(slots: readonly (Customer | null)[]): number {
   return slots.findIndex((s) => s === null)
 }
 
-/** Sorteia receita e aparência de um novo cliente. Devolve o cliente (sem id/slot finais) e o novo estado do RNG. */
+/** Sorteia o pedido (lanche + combo + tamanho do copo). */
+export function rollOrder(rngState: number, level: number): [OrderItems, number] {
+  const recipes = unlockedRecipes(level)
+  const [pickRecipe, s1] = nextRandom(rngState)
+  const recipe = recipes[Math.floor(pickRecipe * recipes.length)] ?? recipes[0]!
+
+  const combos = COMBOS.filter((c) => c.unlockLevel <= level)
+  const totalWeight = combos.reduce((sum, c) => sum + c.weight, 0)
+  const [pickCombo, s2] = nextRandom(s1)
+  let roll = pickCombo * totalWeight
+  let combo = combos[0]!
+  for (const c of combos) {
+    if (roll < c.weight) {
+      combo = c
+      break
+    }
+    roll -= c.weight
+  }
+
+  const [sizeIdx, s3] = randomInt(s2, 0, CUP_SIZES.length - 1)
+  return [{ recipeId: recipe.id, fries: combo.fries, drink: combo.drink ? CUP_SIZES[sizeIdx]! : null }, s3]
+}
+
+/** Sorteia um novo cliente: pedido e aparência (evitando as que já estão no balcão). */
 export function rollCustomer(
   rngState: number,
   level: number,
@@ -32,22 +61,18 @@ export function rollCustomer(
   slot: number,
   usedVariants: readonly number[] = [],
 ): [Customer, number] {
-  const pool = unlockedRecipes(level)
-  const [pick, s1] = nextRandom(rngState)
-  const recipe = pool[Math.floor(pick * pool.length)] ?? pool[0]!
-  // Evita repetir a aparência de quem já está no balcão (enquanto houver aparências livres).
+  const [order, s1] = rollOrder(rngState, level)
   const all = Array.from({ length: CUSTOMERS.variantCount }, (_, i) => i)
   const free = all.filter((v) => !usedVariants.includes(v))
   const options = free.length > 0 ? free : all
   const [idx, s2] = randomInt(s1, 0, options.length - 1)
-  const variant = options[idx]!
-  const patienceMax = patienceFor(recipe)
+  const patienceMax = patienceFor(order)
   return [
     {
       id,
       slot,
-      recipeId: recipe.id,
-      variant,
+      order,
+      variant: options[idx]!,
       patienceMax,
       patience: patienceMax,
       status: 'waiting',

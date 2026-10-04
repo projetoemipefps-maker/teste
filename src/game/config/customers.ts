@@ -3,6 +3,8 @@ export const CUSTOMERS = {
   /** Paciência = base + porIngrediente × nº de ingredientes do pedido (segundos). */
   patienceBase: 25,
   patiencePerIngredient: 4,
+  patienceFriesBonus: 8,
+  patienceDrinkBonus: 6,
   firstSpawnDelay: 2,
   spawnIntervalMin: 6,
   spawnIntervalMax: 12,

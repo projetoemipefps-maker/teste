@@ -1,0 +1,56 @@
+import { AnimatePresence, motion } from 'framer-motion'
+import { GRILL } from '@/game/config'
+import { PattyDisc, pattyHeatColor } from '@/art'
+import type { PattyQuality } from '@/game/engine'
+
+const QUALITY_HEAT: Record<PattyQuality, number> = {
+  raw: 0,
+  perfect: GRILL.sideDoneSeconds,
+  overdone: GRILL.sideOverdoneSeconds,
+}
+const QUALITY_LABEL: Record<PattyQuality, string> = { raw: 'Crua', perfect: 'No ponto', overdone: 'Passada' }
+
+interface Props {
+  held: readonly PattyQuality[]
+  /** Se informado, cada carne vira um botão que a coloca no lanche. */
+  onPick?: (index: number) => void
+  canPick?: boolean
+}
+
+export const qualityColor = (q: PattyQuality) => pattyHeatColor(QUALITY_HEAT[q])
+
+/** Prato com as carnes prontas, esperando para entrar no lanche. */
+export function HeldPlate({ held, onPick, canPick = true }: Props) {
+  return (
+    <div className="flex flex-col items-center gap-1" aria-label="Carnes prontas">
+      <div className="relative grid h-[84px] w-[84px] grid-cols-2 content-center place-items-center gap-0.5 rounded-full border-4 border-ink bg-white p-1.5 shadow-[0_4px_0_rgba(59,31,14,.35)]">
+        <div className="pointer-events-none absolute inset-2 rounded-full border-2 border-[#E4D7BE]" />
+        <AnimatePresence>
+          {held.map((q, i) => (
+            <motion.button
+              key={`${i}-${q}`}
+              type="button"
+              aria-label={`Pôr carne ${QUALITY_LABEL[q].toLowerCase()} no lanche`}
+              disabled={!onPick || !canPick}
+              onClick={() => onPick?.(i)}
+              className={`relative h-[34px] w-[34px] ${onPick && canPick ? '' : 'cursor-default'} ${onPick && !canPick ? 'opacity-60' : ''}`}
+              initial={{ scale: 0, y: -20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0, opacity: 0, transition: { duration: 0.15 } }}
+              whileTap={onPick && canPick ? { scale: 0.85 } : undefined}
+              transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+            >
+              <PattyDisc color={qualityColor(q)} className="h-full w-full overflow-visible" />
+            </motion.button>
+          ))}
+        </AnimatePresence>
+        {held.length === 0 && (
+          <span className="col-span-2 text-center font-display text-[10px] leading-tight text-ink/50">sem carne pronta</span>
+        )}
+      </div>
+      <span className="font-display text-[11px] leading-none text-white [text-shadow:0_1px_0_#3B1F0E,1px_0_0_#3B1F0E,-1px_0_0_#3B1F0E]">
+        Carnes {held.length}/{GRILL.heldCapacity}
+      </span>
+    </div>
+  )
+}

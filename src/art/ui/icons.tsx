@@ -90,3 +90,69 @@ export function BackIcon(props: P) {
     </svg>
   )
 }
+
+export function CheckIcon(props: P) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <path d="M5 12.5 L10 17.5 L19 7" fill="none" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function FlipIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <path d="M7 14 A9 9 0 0 1 24 11" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+      <path d="M25 18 A9 9 0 0 1 8 21" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+      <path d="M24 5 V12 H17" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 27 V20 H15" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Ícones das abas da bancada. */
+export function TabBurgerIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <path d="M4 14 Q4 4 16 4 Q28 4 28 14Z" fill="#E39A47" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+      <rect x="3" y="16" width="26" height="5" rx="2.5" fill="#7B3F1C" stroke={INK} strokeWidth="2.5" />
+      <path d="M4 23 H28 V25 Q28 28 25 28 H7 Q4 28 4 25Z" fill="#E39A47" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function TabGrillIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <rect x="3" y="14" width="26" height="14" rx="4" fill="#5D5D66" stroke={INK} strokeWidth="2.5" />
+      <path d="M8 17 V26 M13 17 V26 M18 17 V26 M23 17 V26" stroke="#2F2F36" strokeWidth="2.5" strokeLinecap="round" />
+      <ellipse cx="16" cy="11" rx="9" ry="4.5" fill="#8D4B26" stroke={INK} strokeWidth="2.5" />
+      <path d="M12 3 Q10 6 12 8 M17 2 Q15 5 17 7" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".8" />
+    </svg>
+  )
+}
+
+export function TabFriesIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <g fill="#FFD966" stroke={INK} strokeWidth="2">
+        <rect x="8" y="3" width="4.5" height="14" rx="1.5" transform="rotate(-10 10 10)" />
+        <rect x="13.5" y="2" width="4.5" height="15" rx="1.5" />
+        <rect x="19" y="3" width="4.5" height="14" rx="1.5" transform="rotate(10 21 10)" />
+      </g>
+      <path d="M5 16 H27 L24.5 29 H7.5Z" fill="#E63B2E" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function TabCupIcon(props: P) {
+  return (
+    <svg viewBox="0 0 32 32" {...props}>
+      <path d="M8 8 H24 L22 28 H10Z" fill="#fff" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M9.2 16 H22.8 L22 28 H10Z" fill="#5B2A16" />
+      <path d="M8 8 H24 L22 28 H10Z" fill="none" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+      <rect x="7" y="5" width="18" height="4" rx="2" fill="#E63B2E" stroke={INK} strokeWidth="2" />
+      <path d="M17 5 L20 1 H24" fill="none" stroke={INK} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

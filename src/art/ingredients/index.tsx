@@ -1,6 +1,8 @@
 import type { SVGProps } from 'react'
 import type { IngredientId } from '@/game/config'
+import type { PattyQuality } from '@/game/engine'
 import { INK, STROKE } from '../palette'
+import { PATTY_QUALITY_COLORS } from '../cooking'
 
 /** Todas as peças têm 160 de largura; a altura varia. */
 export const ART_WIDTH = 160
@@ -35,19 +37,20 @@ export function BunBottom(props: P) {
   )
 }
 
-export function Patty(props: P) {
+export function Patty({ quality = 'perfect', ...props }: P & { quality?: PattyQuality }) {
+  const c = PATTY_QUALITY_COLORS[quality]
   return (
     <svg viewBox="0 0 160 38" {...props}>
-      <path d="M8 10 Q8 4 16 4 H144 Q152 4 152 10 V26 Q152 34 144 34 H16 Q8 34 8 26Z" fill="#7B3F1C" {...common} />
-      <path d="M12 12 Q12 8 18 8 H142 Q148 8 148 12 Z" fill="#A55E30" />
-      <g stroke="#4E230C" strokeWidth="3" strokeLinecap="round">
+      <path d="M8 10 Q8 4 16 4 H144 Q152 4 152 10 V26 Q152 34 144 34 H16 Q8 34 8 26Z" fill={c.base} {...common} />
+      <path d="M12 12 Q12 8 18 8 H142 Q148 8 148 12 Z" fill={c.top} />
+      <g stroke={c.marks} strokeWidth="3" strokeLinecap="round">
         <path d="M34 15 L42 25" />
         <path d="M62 15 L70 25" />
         <path d="M90 15 L98 25" />
         <path d="M118 15 L126 25" />
       </g>
-      <circle cx="22" cy="24" r="2.5" fill="#5C2C12" />
-      <circle cx="140" cy="22" r="2.5" fill="#5C2C12" />
+      <circle cx="22" cy="24" r="2.5" fill={c.marks} />
+      <circle cx="140" cy="22" r="2.5" fill={c.marks} />
     </svg>
   )
 }
@@ -124,7 +127,33 @@ const ART: Record<IngredientId, (p: P) => React.JSX.Element> = {
   bunTop: BunTop,
 }
 
-export function IngredientArt({ id, ...props }: { id: IngredientId } & P) {
+/** `quality` só vale para a carne. */
+export function IngredientArt({ id, quality, ...props }: { id: IngredientId; quality?: PattyQuality } & P) {
+  if (id === 'patty') return <Patty quality={quality} {...props} />
   const Art = ART[id]
   return <Art {...props} />
+}
+
+/** Carne vista de cima (chapa e prato). `color` é a cor do lado visível. */
+export function PattyDisc({ color, className }: { color: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className={className} aria-hidden>
+      <ellipse cx="50" cy="56" rx="44" ry="40" fill="#000" opacity=".22" />
+      <path
+        d="M50 8 C74 6 94 24 93 50 C92 76 72 94 48 92 C24 91 7 74 8 49 C9 25 27 9 50 8Z"
+        fill={color}
+        stroke={INK}
+        strokeWidth="4.5"
+        strokeLinejoin="round"
+      />
+      <path d="M24 34 Q34 18 52 16" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="5" strokeLinecap="round" />
+      <g fill="#000" opacity=".16">
+        <circle cx="34" cy="58" r="4.5" />
+        <circle cx="62" cy="44" r="4" />
+        <circle cx="58" cy="70" r="5" />
+        <circle cx="72" cy="62" r="3" />
+        <circle cx="40" cy="40" r="3" />
+      </g>
+    </svg>
+  )
 }

@@ -1,19 +1,26 @@
-import { CUSTOMERS } from '../config'
-import { addIngredient } from './burger'
-import type { GameEvent, SessionState } from './types'
-import type { IngredientId } from '../config'
+import { CUSTOMERS, FRYER, GRILL, CLOSING_INGREDIENT, type IngredientId } from '../config'
+import { addIngredient, canAddIngredient, isClosed } from './burger'
+import type { ActionResult, SessionState, TrayItem } from './types'
 
 export function createSession(seed: number): SessionState {
   return {
     slots: Array.from({ length: CUSTOMERS.maxSlots }, () => null),
     burger: [],
+    burgerPatties: [],
+    tray: { burger: null, fries: null, drink: null },
+    grill: Array.from({ length: GRILL.slots }, () => null),
+    held: [],
+    fryer: Array.from({ length: FRYER.baskets }, () => null),
+    warmer: [],
+    cup: null,
+    pouring: false,
     selectedSlot: null,
     elapsed: 0,
     spawnTimer: CUSTOMERS.firstSpawnDelay,
     nextCustomerId: 1,
     rngState: seed >>> 0,
     ended: false,
-    stats: { served: 0, wrong: 0, lost: 0, earned: 0 },
+    stats: { served: 0, lost: 0, earned: 0, starsTotal: 0 },
   }
 }
 
@@ -24,20 +31,66 @@ export function selectSlot(session: SessionState, slot: number): SessionState {
   return { ...session, selectedSlot: session.selectedSlot === slot ? null : slot }
 }
 
-export function addToBurger(
-  session: SessionState,
-  ingredient: IngredientId,
-): { session: SessionState; events: GameEvent[] } {
-  if (session.ended) return { session, events: [] }
-  const burger = addIngredient(session.burger, ingredient)
-  if (burger === session.burger) return { session, events: [] }
+/** O pão de cima só fecha o lanche se a bandeja estiver livre para recebê-lo. */
+export function canAddToBurger(session: SessionState, ingredient: IngredientId): boolean {
+  if (session.ended || ingredient === 'patty') return false
+  if (ingredient === CLOSING_INGREDIENT && session.tray.burger) return false
+  return canAddIngredient(session.burger, ingredient)
+}
+
+/** Adiciona um ingrediente que não precisa de cozimento. A carne entra por `addPattyToBurger`. */
+export function addToBurger(session: SessionState, ingredient: IngredientId): ActionResult {
+  if (!canAddToBurger(session, ingredient)) return { session, events: [] }
   return {
-    session: { ...session, burger: [...burger] },
+    session: { ...session, burger: [...addIngredient(session.burger, ingredient)] },
     events: [{ type: 'ingredientAdded', ingredient }],
   }
 }
 
-export function discardBurger(session: SessionState): { session: SessionState; events: GameEvent[] } {
+/** Põe no lanche uma das carnes prontas do prato (`heldIndex`). */
+export function addPattyToBurger(session: SessionState, heldIndex: number): ActionResult {
+  const quality = session.held[heldIndex]
+  if (session.ended || !quality || !canAddIngredient(session.burger, 'patty')) return { session, events: [] }
+  return {
+    session: {
+      ...session,
+      burger: [...addIngredient(session.burger, 'patty')],
+      burgerPatties: [...session.burgerPatties, quality],
+      held: session.held.filter((_, i) => i !== heldIndex),
+    },
+    events: [{ type: 'ingredientAdded', ingredient: 'patty' }],
+  }
+}
+
+/** Passa o lanche fechado do prato para a bandeja. */
+export function sendBurgerToTray(session: SessionState): ActionResult {
+  if (session.ended || !isClosed(session.burger) || session.tray.burger) return { session, events: [] }
+  return {
+    session: {
+      ...session,
+      burger: [],
+      burgerPatties: [],
+      tray: { ...session.tray, burger: { ingredients: session.burger, patties: session.burgerPatties } },
+    },
+    events: [{ type: 'trayPlaced', item: 'burger' }],
+  }
+}
+
+/** Joga fora o lanche que está sendo montado (as carnes usadas se perdem). */
+export function discardBurger(session: SessionState): ActionResult {
   if (session.burger.length === 0) return { session, events: [] }
-  return { session: { ...session, burger: [] }, events: [{ type: 'burgerDiscarded' }] }
+  return { session: { ...session, burger: [], burgerPatties: [] }, events: [{ type: 'burgerDiscarded' }] }
+}
+
+export function discardTrayItem(session: SessionState, item: TrayItem): ActionResult {
+  if (session.ended || !session.tray[item]) return { session, events: [] }
+  return {
+    session: { ...session, tray: { ...session.tray, [item]: null } },
+    events: [{ type: 'trayDiscarded', item }],
+  }
+}
+
+export function trayIsEmpty(session: SessionState): boolean {
+  const { burger, fries, drink } = session.tray
+  return !burger && !fries && !drink
 }

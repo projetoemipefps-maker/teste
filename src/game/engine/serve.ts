@@ -1,47 +1,87 @@
+import { CUSTOMERS, ECONOMY } from '../config'
 import { getRecipe, patienceRatio } from './customers'
-import { matchesRecipe } from './burger'
-import { computePayment } from './payment'
-import { applyReputation, reputationDelta } from './rating'
+import { computeTip, drinkPrice, orderPrice, perfectPattyBonus, recipePrice, wrongItemPay } from './payment'
+import { applyReputation, rateOrder, reputationForStars } from './rating'
+import { trayIsEmpty } from './session'
 import { addXp, xpForServe } from './xp'
-import { CUSTOMERS } from '../config'
-import type { StepResult, SessionState, PlayerState } from './types'
+import type { Customer, Mood, PlayerState, ServiceNote, SessionState, StepResult, Tray } from './types'
 
 export function canServe(session: SessionState): boolean {
-  if (session.ended || session.burger.length === 0 || session.selectedSlot === null) return false
+  if (session.ended || trayIsEmpty(session) || session.selectedSlot === null) return false
   return session.slots[session.selectedSlot]?.status === 'waiting'
 }
 
-/** Entrega o lanche montado ao cliente selecionado. Certo paga cheio; errado paga menos e o cliente sai bravo. */
+export interface ServiceResult {
+  stars: number
+  burgerCorrect: boolean
+  itemsPaid: number
+  tip: number
+  bonus: number
+  total: number
+  notes: ServiceNote[]
+  extrasDelivered: number
+}
+
+/** Calcula nota e pagamento de uma entrega (função pura, sem alterar o estado). */
+export function evaluateService(customer: Customer, tray: Tray): ServiceResult {
+  const { order } = customer
+  const ratio = patienceRatio(customer)
+  const rating = rateOrder(order, tray, ratio)
+  const recipe = getRecipe(order.recipeId)
+  const burgerPrice = recipePrice(recipe)
+
+  let itemsPaid = 0
+  if (tray.burger) itemsPaid += rating.burgerCorrect ? burgerPrice : wrongItemPay(burgerPrice)
+  let extrasDelivered = 0
+  if (order.fries && tray.fries) {
+    itemsPaid += ECONOMY.friesPrice
+    extrasDelivered += 1
+  }
+  if (order.drink && tray.drink) {
+    const price = drinkPrice(order.drink)
+    itemsPaid += tray.drink.size === order.drink ? price : wrongItemPay(price)
+    extrasDelivered += 1
+  }
+
+  const tip = computeTip(orderPrice(order), rating.stars, ratio)
+  const bonus = rating.burgerCorrect ? perfectPattyBonus(burgerPrice, rating.perfectShare) : 0
+  return {
+    stars: rating.stars,
+    burgerCorrect: rating.burgerCorrect,
+    itemsPaid,
+    tip,
+    bonus,
+    total: itemsPaid + tip + bonus,
+    notes: rating.notes,
+    extrasDelivered,
+  }
+}
+
+/** Entrega a bandeja ao cliente selecionado: dá nota, paga, dá XP e ajusta a reputação. */
 export function serveOrder(session: SessionState, player: PlayerState): StepResult {
   if (!canServe(session)) return { session, player, events: [] }
   const slot = session.selectedSlot!
   const customer = session.slots[slot]!
-  const recipe = getRecipe(customer.recipeId)
-  const ratio = patienceRatio(customer)
-  const correct = matchesRecipe(session.burger, recipe)
-
-  const payment = computePayment(recipe, ratio, correct)
-  const xpGain = xpForServe(recipe, correct)
+  const result = evaluateService(customer, session.tray)
+  const xpGain = xpForServe(result.stars, result.extrasDelivered)
   const progress = addXp(player.level, player.xp, xpGain)
-  const reputation = applyReputation(player.reputation, reputationDelta(correct ? 'correct' : 'wrong', ratio))
 
+  const mood: Mood = result.stars >= 4 ? 'happy' : result.stars <= 2 ? 'angry' : 'neutral'
   const slots = [...session.slots]
-  slots[slot] = {
-    ...customer,
-    status: 'leaving',
-    mood: correct ? 'happy' : 'angry',
-    leaveTimer: CUSTOMERS.leaveDuration,
-  }
+  slots[slot] = { ...customer, status: 'leaving', mood, leaveTimer: CUSTOMERS.leaveDuration }
 
   const events: StepResult['events'] = [
     {
       type: 'customerServed',
       slot,
       customerId: customer.id,
-      correct,
-      base: payment.base,
-      tip: payment.tip,
-      total: payment.total,
+      stars: result.stars,
+      burgerCorrect: result.burgerCorrect,
+      itemsPaid: result.itemsPaid,
+      tip: result.tip,
+      bonus: result.bonus,
+      total: result.total,
+      notes: result.notes,
       xp: xpGain,
     },
   ]
@@ -51,21 +91,21 @@ export function serveOrder(session: SessionState, player: PlayerState): StepResu
     session: {
       ...session,
       slots,
-      burger: [],
+      tray: { burger: null, fries: null, drink: null },
       selectedSlot: null,
       stats: {
         ...session.stats,
-        served: session.stats.served + (correct ? 1 : 0),
-        wrong: session.stats.wrong + (correct ? 0 : 1),
-        earned: session.stats.earned + payment.total,
+        served: session.stats.served + 1,
+        earned: session.stats.earned + result.total,
+        starsTotal: session.stats.starsTotal + result.stars,
       },
     },
     player: {
       ...player,
-      money: player.money + payment.total,
+      money: player.money + result.total,
       xp: progress.xp,
       level: progress.level,
-      reputation,
+      reputation: applyReputation(player.reputation, reputationForStars(result.stars)),
     },
     events,
   }

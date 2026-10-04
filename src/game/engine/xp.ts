@@ -1,13 +1,14 @@
-import { PROGRESSION, type Recipe } from '../config'
+import { PROGRESSION } from '../config'
 
 /** XP necessário para sair do nível `level` para o próximo. */
 export function xpToNext(level: number): number {
   return Math.round(PROGRESSION.xpBase * Math.pow(PROGRESSION.xpGrowth, level - 1))
 }
 
-export function xpForServe(recipe: Recipe, correct: boolean): number {
-  if (!correct) return PROGRESSION.xpPerWrongServe
-  return PROGRESSION.xpPerCorrectServe + PROGRESSION.xpPerIngredient * recipe.ingredients.length
+/** XP de um atendimento: depende da nota e dos itens extras (batata/bebida) entregues. */
+export function xpForServe(stars: number, extrasDelivered: number): number {
+  const base = PROGRESSION.xpByStars[Math.min(5, Math.max(1, stars)) - 1] ?? 0
+  return base + PROGRESSION.xpPerExtraItem * extrasDelivered
 }
 
 export interface XpResult {

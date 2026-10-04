@@ -1,10 +1,14 @@
-import { CUSTOMERS, SHIFT } from '../config'
+import { CUSTOMERS, FRYER, SHIFT } from '../config'
 import { firstFreeSlot, rollCustomer } from './customers'
-import { applyReputation, reputationDelta } from './rating'
+import { pourCup } from './drinks'
+import { cookPatty, pattyStage } from './grill'
+import { applyReputation, reputationLost } from './rating'
 import { randomRange } from './rng'
-import type { Customer, GameEvent, PlayerState, SessionState, StepResult } from './types'
+import type { Customer, FriesPortion, FryBasket, GameEvent, GrillPatty, PlayerState, SessionState, StepResult } from './types'
 
-/** Avança o turno `dt` segundos: paciência, saída de clientes, chegadas e fim do turno. Função pura. */
+const burntBefore = (p: GrillPatty) => pattyStage(p) === 'burnt'
+
+/** Avança o turno `dt` segundos: cozimento, paciência, saída de clientes, chegadas e fim do turno. Função pura. */
 export function step(session: SessionState, player: PlayerState, dtRaw: number): StepResult {
   if (session.ended || dtRaw <= 0) return { session, player, events: [] }
   const dt = Math.min(dtRaw, SHIFT.maxDeltaSeconds)
@@ -21,11 +25,33 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
     }
     const patience = c.patience - dt
     if (patience > 0) return { ...c, patience }
-    reputation = applyReputation(reputation, reputationDelta('lost', 0))
+    reputation = applyReputation(reputation, reputationLost())
     lost += 1
     events.push({ type: 'customerLost', slot: c.slot, customerId: c.id })
     return { ...c, patience: 0, status: 'leaving', mood: 'angry', leaveTimer: CUSTOMERS.leaveDuration }
   })
+
+  // Cozinha: chapa, fritadeira, estufa e máquina de refrigerante.
+  const grill = session.grill.map((p, slot): GrillPatty | null => {
+    if (!p) return null
+    const next = cookPatty(p, dt)
+    if (!burntBefore(p) && burntBefore(next)) events.push({ type: 'pattyBurnt', slot })
+    return next
+  })
+  const fryer = session.fryer.map((b, basket): FryBasket | null => {
+    if (!b) return null
+    const cook = b.cook + dt
+    if (b.cook < FRYER.readySeconds && cook >= FRYER.readySeconds) events.push({ type: 'friesReady', basket })
+    if (b.cook < FRYER.burntSeconds && cook >= FRYER.burntSeconds) events.push({ type: 'friesBurnt', basket })
+    return { cook }
+  })
+  const warmer: FriesPortion[] = session.warmer.map((f) => ({ age: f.age + dt }))
+  let cup = session.cup
+  if (cup && session.pouring) {
+    const poured = pourCup(cup, dt)
+    cup = poured.cup
+    if (poured.startedSpilling) events.push({ type: 'cupSpilled' })
+  }
 
   const elapsed = session.elapsed + dt
   const ended = elapsed >= SHIFT.durationSeconds
@@ -65,6 +91,11 @@ export function step(session: SessionState, player: PlayerState, dtRaw: number):
     session: {
       ...session,
       slots,
+      grill,
+      fryer,
+      warmer,
+      cup,
+      pouring: ended ? false : session.pouring,
       elapsed,
       ended,
       spawnTimer,
